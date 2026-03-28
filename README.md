@@ -6,7 +6,7 @@ FOSS device-management agent + server (in Go)
 See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed task tracking.
 
 - [x] **Phase 0** — Project Scaffolding
-- [ ] **Phase 1** — Database & Shared Types
+- [x] **Phase 1** — Schema & Shared Types
 - [ ] **Phase 2** — Server Core
 - [ ] **Phase 3** — PKI & Agent Enrollment
 - [ ] **Phase 4** — API Server: Auth & RBAC

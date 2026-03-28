@@ -48,7 +48,7 @@ This plan is ordered by dependency. Each phase builds on the prior one. Tasks wi
 
 ## Phase 1 — Schema & Shared Types
 
-- [ ] **1.1** Reference schema (`deploy/schema.sql`)
+- [x] **1.1** Reference schema (`deploy/schema.sql`)
 Single development-time schema file containing all tables. Not a migration — just a reference used to create/reset dev databases. Will be frozen into a proper migration in Phase 17 before first deployment.
 Tables from all specs:
 - Core: `tenants`, `users`, `roles`, `api_keys`, `devices`
@@ -62,12 +62,12 @@ Tables from all specs:
 - Updates: `agent_versions`, `agent_version_binaries`, `agent_update_policies`
 - Installers: `installers`
 
-- [ ] **1.2** Shared domain models (`shared/models/`)
+- [x] **1.2** Shared domain models (`shared/models/`)
 Go structs mirroring core DB types: `Tenant`, `User`, `Role`, `Device`, `Job`, `JobResult`, `AuditEntry`, `Group`, `Tag`, `Site`, etc.
 - Use struct tags for JSON serialization matching the API spec field names
 - ID types using prefixed UUIDs (`agt_`, `dev_`, `job_`, `ten_`, etc.)
 
-- [ ] **1.3** Shared protocol types (`shared/protocol/`)
+- [x] **1.3** Shared protocol types (`shared/protocol/`)
 Request/response types for agent<->server communication per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 - `CheckinRequest` / `CheckinResponse`
 - `EnrollRequest` / `EnrollResponse`
