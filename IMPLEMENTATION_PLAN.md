@@ -46,53 +46,28 @@ This plan is ordered by dependency. Each phase builds on the prior one. Tasks wi
 
 ---
 
-## Phase 1 — Database & Shared Types
+## Phase 1 — Schema & Shared Types
 
-- [ ] **1.1** PostgreSQL migration framework
-- Integrate `golang-migrate` (per `SERVER_DEPLOYMENT_SPEC.md`)
-- Forward-only numbered SQL files in `deploy/migrations/`
-- `migrate` subcommand on the API server binary: `agent-server-api migrate`
-- Idempotent — safe to run on every deploy
+- [ ] **1.1** Reference schema (`deploy/schema.sql`)
+Single development-time schema file containing all tables. Not a migration — just a reference used to create/reset dev databases. Will be frozen into a proper migration in Phase 17 before first deployment.
+Tables from all specs:
+- Core: `tenants`, `users`, `roles`, `api_keys`, `devices`
+- Grouping: `groups`, `device_groups`, `tags`, `device_tags`, `sites`, `device_sites`
+- Inventory: `inventory_hardware`, `inventory_packages`
+- Jobs: `jobs`, `job_results`, `scheduled_jobs`
+- Audit: `audit_log`
+- Alerts: `alert_rules`
+- Auth: `agent_certificates`, `enrollment_tokens`
+- Files: `files`, `file_uploads`, `signing_keys`
+- Updates: `agent_versions`, `agent_version_binaries`, `agent_update_policies`
+- Installers: `installers`
 
-- [ ] **1.2** Initial schema migration (`0001_initial_schema.sql`)
-All tables from `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` database schema:
-- `tenants`
-- `users`, `roles`, `api_keys`
-- `devices`
-- `groups`, `device_groups`, `tags`, `device_tags`, `sites`, `device_sites`
-- `inventory_hardware`, `inventory_packages`
-- `jobs`, `job_results`
-- `scheduled_jobs`
-- `audit_log`
-- `alert_rules`
-
-- [ ] **1.3** Auth & certificate schema migration (`0002_agent_auth.sql`)
-From `AGENT_AUTH_SPEC.md`:
-- `agent_certificates` (serial_number, fingerprint, issued_at, expires_at, revoked_at, revocation_reason)
-- `enrollment_tokens` (token_hash, scope, used_at, expires_at)
-
-- [ ] **1.4** File transfer schema migration (`0003_file_transfer.sql`)
-From `FILE_TRANSFER_SPEC.md`:
-- `files` (filename, size_bytes, sha256, signature, storage_backend, storage_path)
-- `file_uploads` (chunk tracking, expiry)
-- `signing_keys` (name, algorithm, public_key, fingerprint)
-
-- [ ] **1.5** Agent update schema migration (`0004_agent_update.sql`)
-From `AGENT_UPDATE_SPEC.md`:
-- `agent_versions` (version, channel, changelog, yanked)
-- `agent_version_binaries` (os, arch, file_id, sha256, signature)
-- `agent_update_policies` (tenant/group level, channel, schedule, rollout config)
-
-- [ ] **1.6** Installer schema migration (`0005_installers.sql`)
-From `INSTALLER_PACKAGING_SPEC.md`:
-- `installers` (version, channel, os, arch, file_id, sha256, signature, yanked)
-
-- [ ] **1.7** Shared domain models (`shared/models/`)
+- [ ] **1.2** Shared domain models (`shared/models/`)
 Go structs mirroring core DB types: `Tenant`, `User`, `Role`, `Device`, `Job`, `JobResult`, `AuditEntry`, `Group`, `Tag`, `Site`, etc.
 - Use struct tags for JSON serialization matching the API spec field names
 - ID types using prefixed UUIDs (`agt_`, `dev_`, `job_`, `ten_`, etc.)
 
-- [ ] **1.8** Shared protocol types (`shared/protocol/`)
+- [ ] **1.3** Shared protocol types (`shared/protocol/`)
 Request/response types for agent<->server communication per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 - `CheckinRequest` / `CheckinResponse`
 - `EnrollRequest` / `EnrollResponse`
@@ -737,7 +712,14 @@ Per `INSTALLER_PACKAGING_SPEC.md` security note:
 
 ## Phase 17 — Deployment Configs
 
-- [ ] **17.1** Docker Compose deployment
+- [ ] **17.1** PostgreSQL migration framework
+- Integrate `golang-migrate` (per `SERVER_DEPLOYMENT_SPEC.md`)
+- Freeze `deploy/schema.sql` into `deploy/migrations/0001_initial_schema.sql`
+- Forward-only numbered SQL files in `deploy/migrations/`
+- `migrate` subcommand on the API server binary: `moebius-api migrate`
+- Idempotent — safe to run on every deploy
+
+- [ ] **17.2** Docker Compose deployment
 Per `SERVER_DEPLOYMENT_SPEC.md`:
 - `deploy/docker-compose.yml` with services: postgres, nats, api, worker, scheduler, proxy (Caddy)
 - `deploy/.env.example` with required/optional vars
@@ -745,15 +727,15 @@ Per `SERVER_DEPLOYMENT_SPEC.md`:
 - Healthchecks on postgres
 - Volume mounts for persistent data
 
-- [ ] **17.2** Dockerfiles
+- [x] **17.3** Dockerfiles
 - `Dockerfile.api`, `Dockerfile.worker`, `Dockerfile.scheduler`
-- Multi-stage build: Go builder → distroless/alpine runtime
-- Expose health/metrics ports
+- Multi-stage build: Go builder → alpine runtime
 - Entrypoint with subcommand support (`migrate`, `generate-ca`, `create-admin`)
+- *(completed in Phase 0)*
 
-- [ ] **17.3** Helm chart
+- [ ] **17.4** Helm chart
 Per `SERVER_DEPLOYMENT_SPEC.md` Helm structure:
-- `deploy/helm/charts/agent-server/`
+- `deploy/helm/charts/moebius/`
 - Templates: api (deployment, service, HPA, PDB), worker (deployment, HPA, PDB), scheduler (deployment), ingress, configmap, secrets, migration job
 - `values.yaml` with defaults, `values.production.yaml` with SaaS overrides
 - NATS: bundled StatefulSet or external URL
@@ -762,8 +744,8 @@ Per `SERVER_DEPLOYMENT_SPEC.md` Helm structure:
 - mTLS passthrough for `/v1/agents/*` paths (Option A per spec)
 - Pre-upgrade hook for migrations
 
-- [ ] **17.4** Create-admin command
-`agent-server-api create-admin --email <email>` per `SERVER_DEPLOYMENT_SPEC.md` startup sequence:
+- [ ] **17.5** Create-admin command
+`moebius-api create-admin --email <email>` per `SERVER_DEPLOYMENT_SPEC.md` startup sequence:
 - Create initial admin user + Super Admin role
 - Generate and print initial API key
 - First-run bootstrap only
