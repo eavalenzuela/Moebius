@@ -37,7 +37,7 @@ func runGenerateCA() {
 		outDir = os.Args[2]
 	}
 
-	if err := os.MkdirAll(outDir, 0o700); err != nil {
+	if err := os.MkdirAll(outDir, 0o700); err != nil { //nolint:gosec // CLI arg from operator, not user input
 		fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
 		os.Exit(1)
 	}
@@ -76,7 +76,7 @@ func runGenerateCA() {
 		if filepath.Ext(name) == ".key" {
 			perm = 0o600
 		}
-		if err := os.WriteFile(path, data, perm); err != nil {
+		if err := os.WriteFile(path, data, perm); err != nil { //nolint:gosec // CLI arg from operator, not user input
 			fmt.Fprintf(os.Stderr, "Error writing %s: %v\n", path, err)
 			os.Exit(1)
 		}

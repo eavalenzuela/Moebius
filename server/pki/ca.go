@@ -23,11 +23,11 @@ type CA struct {
 
 // LoadCA reads a PEM-encoded CA certificate and ECDSA private key from disk.
 func LoadCA(certPath, keyPath string) (*CA, error) {
-	certPEM, err := os.ReadFile(certPath)
+	certPEM, err := os.ReadFile(certPath) //nolint:gosec // path from server config, not user input
 	if err != nil {
 		return nil, fmt.Errorf("read CA cert: %w", err)
 	}
-	keyPEM, err := os.ReadFile(keyPath)
+	keyPEM, err := os.ReadFile(keyPath) //nolint:gosec // path from server config, not user input
 	if err != nil {
 		return nil, fmt.Errorf("read CA key: %w", err)
 	}
