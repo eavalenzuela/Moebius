@@ -18,7 +18,7 @@ func (m *mockChecker) Ping(_ context.Context) error { return m.err }
 func TestLiveness(t *testing.T) {
 	h := New(nil)
 	rr := httptest.NewRecorder()
-	h.Liveness(rr, httptest.NewRequest("GET", "/health", nil))
+	h.Liveness(rr, httptest.NewRequest("GET", "/health", http.NoBody))
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", rr.Code, http.StatusOK)
@@ -36,7 +36,7 @@ func TestReadiness_AllHealthy(t *testing.T) {
 		"nats": &mockChecker{},
 	})
 	rr := httptest.NewRecorder()
-	h.Readiness(rr, httptest.NewRequest("GET", "/health/ready", nil))
+	h.Readiness(rr, httptest.NewRequest("GET", "/health/ready", http.NoBody))
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", rr.Code, http.StatusOK)
@@ -49,7 +49,7 @@ func TestReadiness_OneUnhealthy(t *testing.T) {
 		"nats": &mockChecker{err: errors.New("connection refused")},
 	})
 	rr := httptest.NewRecorder()
-	h.Readiness(rr, httptest.NewRequest("GET", "/health/ready", nil))
+	h.Readiness(rr, httptest.NewRequest("GET", "/health/ready", http.NoBody))
 
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", rr.Code, http.StatusServiceUnavailable)

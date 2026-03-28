@@ -12,18 +12,17 @@ linters:
     - ineffassign
     - gocritic
     - misspell
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+    misspell:
+      locale: US
+      extra-words:
+        - typo: "cancelled"
+          correction: "cancelled"
 
 formatters:
   enable:
     - gofmt
-
-settings:
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-  misspell:
-    locale: US
-    extra-words:
-      - typo: "cancelled"
-        correction: "cancelled"

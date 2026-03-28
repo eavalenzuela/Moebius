@@ -37,7 +37,7 @@ func TestNewText(t *testing.T) {
 	logger.Debug("test debug")
 
 	out := buf.String()
-	if len(out) == 0 {
+	if out == "" {
 		t.Fatal("expected output for debug level message")
 	}
 }
