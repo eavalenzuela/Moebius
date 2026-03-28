@@ -121,19 +121,19 @@ Request/response types for agent<->server communication per `AGENT_CHECKIN_AND_C
 
 ## Phase 3 — PKI & Agent Enrollment
 
-- [ ] **3.1** Internal CA management
+- [x] **3.1** Internal CA management
 - Root CA + Intermediate CA generation (`agent-server-api generate-ca` command per `SERVER_DEPLOYMENT_SPEC.md` startup sequence)
 - CSR signing logic — sign agent CSRs with intermediate CA
 - Certificate serial number tracking
 - CA cert/key loaded from `CA_CERT_PATH` / `CA_KEY_PATH` env vars
 
-- [ ] **3.2** Enrollment token service
+- [x] **3.2** Enrollment token service
 - Create tokens: single-use, time-limited (default 24h), optionally scoped to tenant/group/site/tag
 - Store hashed (`token_hash`), never recoverable after issuance
 - Validate on enrollment: check hash, check expiry, check not used, mark used atomically
 - Audit-log on create, use, and expiry
 
-- [ ] **3.3** Agent enrollment endpoint
+- [x] **3.3** Agent enrollment endpoint
 `POST /v1/agents/enroll` (unauthenticated, token-gated per `AGENT_AUTH_SPEC.md`):
 - Validate enrollment token
 - Validate CSR
@@ -143,14 +143,14 @@ Request/response types for agent<->server communication per `AGENT_CHECKIN_AND_C
 - Return signed cert + CA chain + `agent_id` + `poll_interval_seconds`
 - Audit-log
 
-- [ ] **3.4** mTLS middleware for agent endpoints
+- [x] **3.4** mTLS middleware for agent endpoints
 - TLS config that requests and verifies client certificates against the intermediate CA
 - Extract `agent_id` from certificate SAN
 - Check certificate not expired, not revoked (CRL check against `agent_certificates.revoked_at`)
 - Check `agent_id` maps to an active device record
 - Attach device identity to request context
 
-- [ ] **3.5** Certificate renewal endpoint
+- [x] **3.5** Certificate renewal endpoint
 `POST /v1/agents/renew` (mTLS, per `AGENT_AUTH_SPEC.md`):
 - Validate current cert is trusted and not revoked
 - Sign new CSR, issue new cert

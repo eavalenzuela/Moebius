@@ -8,7 +8,7 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed task tracking.
 - [x] **Phase 0** — Project Scaffolding
 - [x] **Phase 1** — Schema & Shared Types
 - [x] **Phase 2** — Server Core
-- [ ] **Phase 3** — PKI & Agent Enrollment
+- [x] **Phase 3** — PKI & Agent Enrollment
 - [ ] **Phase 4** — API Server: Auth & RBAC
 - [ ] **Phase 5** — Agent Core
 - [ ] **Phase 6** — Job Lifecycle
