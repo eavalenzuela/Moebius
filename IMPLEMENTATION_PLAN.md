@@ -80,39 +80,39 @@ Request/response types for agent<->server communication per `AGENT_CHECKIN_AND_C
 
 ## Phase 2 — Server Core
 
-- [ ] **2.1** Configuration loading
+- [x] **2.1** Configuration loading
 - Environment variable parsing per `SERVER_DEPLOYMENT_SPEC.md` env var reference
 - Shared config struct used by api, worker, and scheduler
 - Validate required vars at startup, fail fast with clear errors
 
-- [ ] **2.2** PostgreSQL connection pool (`server/store/`)
+- [x] **2.2** PostgreSQL connection pool (`server/store/`)
 - Connection pool using `pgxpool`
 - `store.Store` interface with methods per resource (devices, jobs, users, etc.)
 - Tenant-scoped query helpers — every query filters by `tenant_id`
 - Transaction support for multi-table operations
 
-- [ ] **2.3** NATS JetStream client
+- [x] **2.3** NATS JetStream client
 - Connect to NATS, create/verify streams and consumers per `SERVER_DEPLOYMENT_SPEC.md`:
   - `jobs` stream (work queue, delete on ack)
   - `results` stream (interest-based)
   - `logs` stream (max age 7 days)
 - Publish/subscribe helpers with subject patterns: `jobs.dispatch.{tenant_id}.{device_id}`, etc.
 
-- [ ] **2.4** Structured logging
+- [x] **2.4** Structured logging
 - JSON structured logger (zerolog or slog)
 - Fields: `timestamp`, `level`, `service`, `version`, `request_id`, `tenant_id`
 - Configurable via `LOG_LEVEL` and `LOG_FORMAT` env vars
 
-- [ ] **2.5** Prometheus metrics endpoint
+- [x] **2.5** Prometheus metrics endpoint
 - `GET /metrics` on all three processes (not proxied externally)
 - Register key metrics from `SERVER_DEPLOYMENT_SPEC.md`: `agent_checkins_total`, `agent_online`, `jobs_enqueued_total`, `jobs_completed_total`, `job_duration_seconds`, `job_queue_depth`, `file_transfer_bytes_total`, `api_request_duration_seconds`, `db_query_duration_seconds`
 
-- [ ] **2.6** Health endpoints
+- [x] **2.6** Health endpoints
 - `GET /health` — liveness (process running)
 - `GET /health/ready` — readiness (DB + NATS connections healthy)
 - Used by Docker healthchecks and Kubernetes probes
 
-- [ ] **2.7** Audit log service
+- [x] **2.7** Audit log service
 - `server/store/audit.go` — append-only writes to `audit_log` table
 - Called from all mutation paths (job create, device revoke, enrollment, etc.)
 - Actor type resolution: `user`, `api_key`, `agent`, `system`

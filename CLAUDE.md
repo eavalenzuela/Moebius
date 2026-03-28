@@ -71,4 +71,13 @@ Version is injected at build time via `-ldflags` from `shared/version` package.
 - `server/cmd/scheduler` → `moebius-scheduler`
 - `agent/cmd/agent` → `moebius-agent` (subcommands: `run`, `status`, `cdm`, `install`, `uninstall`, `verify`, `logs`, `version`)
 
+**Server core packages (Phase 2):**
+- `server/config` — env var config loading with per-process validation
+- `server/store` — pgxpool wrapper (repository methods added per phase)
+- `server/natsutil` — NATS JetStream client, stream setup, subject helpers
+- `server/logging` — slog-based structured logging (JSON/text, configurable level)
+- `server/metrics` — Prometheus metric definitions (counters, gauges, histograms)
+- `server/health` — liveness (`/health`) and readiness (`/health/ready`) HTTP handlers
+- `server/audit` — append-only audit log writes to PostgreSQL
+
 **Stack:** Go, PostgreSQL, NATS JetStream. Migrations in `deploy/migrations/`. Docker images in `deploy/docker/`.
