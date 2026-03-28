@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  DOCKER_REGISTRY: ghcr.io/moebius-oss
+
+jobs:
+  build-agent:
+    name: Agent (${{ matrix.os }}/${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: windows
+            arch: amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build agent
+        run: make build-agent-${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Package (Linux tarball)
+        if: matrix.os == 'linux'
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          ARTIFACT=moebius-agent-${{ matrix.os }}-${{ matrix.arch }}-${VERSION}
+          mkdir -p staging
+          cp dist/moebius-agent-${{ matrix.os }}-${{ matrix.arch }} staging/agent
+          # TODO: add install.sh, uninstall.sh, agent.service, README.md
+          tar -czf dist/${ARTIFACT}.tar.gz -C staging .
+          sha256sum dist/${ARTIFACT}.tar.gz | awk '{print $1}' > dist/${ARTIFACT}.tar.gz.sha256
+          # TODO: Ed25519 sign with release key
+
+      - name: Package (Windows MSI)
+        if: matrix.os == 'windows'
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          ARTIFACT=moebius-agent-${{ matrix.os }}-${{ matrix.arch }}-${VERSION}
+          sha256sum dist/moebius-agent-${{ matrix.os }}-${{ matrix.arch }}.exe | awk '{print $1}' > dist/${ARTIFACT}.exe.sha256
+          # TODO: build MSI with WiX, sign with Ed25519
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*
+
+  build-server:
+    name: Server images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push images
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          for component in api worker scheduler; do
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              --build-arg VERSION=$TAG \
+              --build-arg GIT_COMMIT=${{ github.sha }} \
+              -f deploy/docker/Dockerfile.${component} \
+              -t ${DOCKER_REGISTRY}/moebius-${component}:${TAG} \
+              -t ${DOCKER_REGISTRY}/moebius-${component}:latest \
+              --push .
+          done
+
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-agent, build-server]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/*
