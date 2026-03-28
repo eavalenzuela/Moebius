@@ -34,17 +34,18 @@ deploy/         # docker-compose.yml, helm/, migrations/
 
 ## Design Specs
 
-All specs are at the repo root. Key references when implementing:
-- `HIGH-LEVEL_DESIGN.md` — architecture, component responsibilities, directory layout
-- `AGENT_AUTH_SPEC.md` — mTLS enrollment, certificate lifecycle
-- `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` — check-in protocol, job lifecycle state machine
-- `REST_API_SPEC.md` — full API endpoint reference
-- `FEATURE_REQUIREMENTS.md` — feature list for agent, server, and UI
-- `SERVER_DEPLOYMENT_SPEC.md` — Docker Compose (self-hosted) and Kubernetes/Helm (SaaS) deployment
-- `LOCAL_UI_CLI_SPEC.md` — agent local web UI and CLI interfaces
-- `FILE_TRANSFER_SPEC.md` — chunked file upload/download with signature verification
-- `AGENT_UPDATE_SPEC.md` — agent auto-update with rollback
-- `INSTALLER_PACKAGING_SPEC.md` — agent distribution and installation
+Design specs live in `docs/`. Key references when implementing:
+- `docs/HIGH-LEVEL_DESIGN.md` — architecture, component responsibilities, directory layout
+- `docs/AGENT_AUTH_SPEC.md` — mTLS enrollment, certificate lifecycle
+- `docs/AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` — check-in protocol, job lifecycle state machine
+- `docs/REST_API_SPEC.md` — full API endpoint reference
+- `docs/SERVER_DEPLOYMENT_SPEC.md` — Docker Compose (self-hosted) and Kubernetes/Helm (SaaS) deployment
+- `docs/LOCAL_UI_CLI_SPEC.md` — agent local web UI and CLI interfaces
+- `docs/FILE_TRANSFER_SPEC.md` — chunked file upload/download with signature verification
+- `docs/AGENT_UPDATE_SPEC.md` — agent auto-update with rollback
+- `docs/INSTALLER_PACKAGING_SPEC.md` — agent distribution and installation
+
+Progress tracking at root: `FEATURE_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`.
 
 ## Build & Development
 
