@@ -1,12 +1,11 @@
 -- 001_initial_schema.up.sql
 -- Frozen from deploy/schema.sql at Phase 6.
-
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- All IDs are TEXT (Go generates prefixed string IDs like dev_a1b2c3d4e5f6a7b8).
 
 -- ─── Tenants ────────────────────────────────────────────
 
 CREATE TABLE tenants (
-    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id         TEXT PRIMARY KEY,
     name       TEXT NOT NULL,
     slug       TEXT NOT NULL UNIQUE,
     config     JSONB,
@@ -16,29 +15,29 @@ CREATE TABLE tenants (
 -- ─── Users & Auth ───────────────────────────────────────
 
 CREATE TABLE roles (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID REFERENCES tenants(id),
+    id          TEXT PRIMARY KEY,
+    tenant_id   TEXT REFERENCES tenants(id),
     name        TEXT NOT NULL,
     permissions JSONB NOT NULL,
     is_custom   BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE users (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID NOT NULL REFERENCES tenants(id),
+    id          TEXT PRIMARY KEY,
+    tenant_id   TEXT NOT NULL REFERENCES tenants(id),
     email       TEXT NOT NULL,
-    role_id     UUID REFERENCES roles(id),
+    role_id     TEXT REFERENCES roles(id),
     sso_subject TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE api_keys (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id    UUID NOT NULL REFERENCES tenants(id),
-    user_id      UUID REFERENCES users(id),
+    id           TEXT PRIMARY KEY,
+    tenant_id    TEXT NOT NULL REFERENCES tenants(id),
+    user_id      TEXT REFERENCES users(id),
     name         TEXT NOT NULL,
     key_hash     TEXT NOT NULL,
-    role_id      UUID REFERENCES roles(id),
+    role_id      TEXT REFERENCES roles(id),
     scope        JSONB,
     is_admin     BOOLEAN NOT NULL DEFAULT FALSE,
     last_used_at TIMESTAMPTZ,
@@ -49,9 +48,9 @@ CREATE TABLE api_keys (
 -- ─── Devices ────────────────────────────────────────────
 
 CREATE TABLE devices (
-    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id                     TEXT PRIMARY KEY,
     hostname               TEXT NOT NULL,
-    tenant_id              UUID NOT NULL REFERENCES tenants(id),
+    tenant_id              TEXT NOT NULL REFERENCES tenants(id),
     os                     TEXT NOT NULL,
     os_version             TEXT NOT NULL,
     arch                   TEXT NOT NULL,
@@ -68,47 +67,47 @@ CREATE TABLE devices (
 -- ─── Grouping ───────────────────────────────────────────
 
 CREATE TABLE groups (
-    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    id        TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
     name      TEXT NOT NULL
 );
 
 CREATE TABLE device_groups (
-    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-    group_id  UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    group_id  TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
     PRIMARY KEY (device_id, group_id)
 );
 
 CREATE TABLE tags (
-    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    id        TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
     name      TEXT NOT NULL
 );
 
 CREATE TABLE device_tags (
-    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-    tag_id    UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    tag_id    TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY KEY (device_id, tag_id)
 );
 
 CREATE TABLE sites (
-    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    id        TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
     name      TEXT NOT NULL,
     location  TEXT
 );
 
 CREATE TABLE device_sites (
-    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-    site_id   UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    site_id   TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
     PRIMARY KEY (device_id, site_id)
 );
 
 -- ─── Inventory ──────────────────────────────────────────
 
 CREATE TABLE inventory_hardware (
-    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id          UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    id                 TEXT PRIMARY KEY,
+    device_id          TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
     collected_at       TIMESTAMPTZ NOT NULL,
     cpu                JSONB,
     ram_mb             BIGINT,
@@ -117,8 +116,8 @@ CREATE TABLE inventory_hardware (
 );
 
 CREATE TABLE inventory_packages (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id    UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    id           TEXT PRIMARY KEY,
+    device_id    TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
     name         TEXT NOT NULL,
     version      TEXT NOT NULL,
     manager      TEXT NOT NULL,
@@ -129,10 +128,10 @@ CREATE TABLE inventory_packages (
 -- ─── Jobs ───────────────────────────────────────────────
 
 CREATE TABLE jobs (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id),
-    device_id       UUID NOT NULL REFERENCES devices(id),
-    parent_job_id   UUID REFERENCES jobs(id),
+    id              TEXT PRIMARY KEY,
+    tenant_id       TEXT NOT NULL REFERENCES tenants(id),
+    device_id       TEXT NOT NULL REFERENCES devices(id),
+    parent_job_id   TEXT REFERENCES jobs(id),
     type            TEXT NOT NULL,
     status          TEXT NOT NULL,
     payload         JSONB NOT NULL,
@@ -140,7 +139,7 @@ CREATE TABLE jobs (
     retry_count     INT NOT NULL DEFAULT 0,
     max_retries     INT NOT NULL DEFAULT 0,
     last_error      TEXT,
-    created_by      UUID REFERENCES users(id),
+    created_by      TEXT REFERENCES users(id),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     dispatched_at   TIMESTAMPTZ,
     acknowledged_at TIMESTAMPTZ,
@@ -149,8 +148,8 @@ CREATE TABLE jobs (
 );
 
 CREATE TABLE job_results (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    job_id       UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    id           TEXT PRIMARY KEY,
+    job_id       TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
     exit_code    INT,
     stdout       TEXT,
     stderr       TEXT,
@@ -161,8 +160,8 @@ CREATE TABLE job_results (
 -- ─── Scheduled Jobs ─────────────────────────────────────
 
 CREATE TABLE scheduled_jobs (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id    UUID NOT NULL REFERENCES tenants(id),
+    id           TEXT PRIMARY KEY,
+    tenant_id    TEXT NOT NULL REFERENCES tenants(id),
     name         TEXT NOT NULL,
     job_type     TEXT NOT NULL,
     payload      JSONB NOT NULL,
@@ -177,13 +176,13 @@ CREATE TABLE scheduled_jobs (
 -- ─── Audit Log ──────────────────────────────────────────
 
 CREATE TABLE audit_log (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id     UUID NOT NULL REFERENCES tenants(id),
-    actor_id      UUID NOT NULL,
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT NOT NULL REFERENCES tenants(id),
+    actor_id      TEXT NOT NULL,
     actor_type    TEXT NOT NULL,
     action        TEXT NOT NULL,
     resource_type TEXT NOT NULL,
-    resource_id   UUID,
+    resource_id   TEXT,
     metadata      JSONB,
     ip_address    TEXT,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -192,8 +191,8 @@ CREATE TABLE audit_log (
 -- ─── Alert Rules ────────────────────────────────────────
 
 CREATE TABLE alert_rules (
-    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    id        TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
     name      TEXT NOT NULL,
     condition JSONB NOT NULL,
     channels  JSONB NOT NULL,
@@ -203,8 +202,8 @@ CREATE TABLE alert_rules (
 -- ─── Agent Certificates ─────────────────────────────────
 
 CREATE TABLE agent_certificates (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id         UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    id                TEXT PRIMARY KEY,
+    device_id         TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
     serial_number     TEXT NOT NULL UNIQUE,
     fingerprint       TEXT NOT NULL UNIQUE,
     issued_at         TIMESTAMPTZ NOT NULL,
@@ -216,10 +215,10 @@ CREATE TABLE agent_certificates (
 -- ─── Enrollment Tokens ──────────────────────────────────
 
 CREATE TABLE enrollment_tokens (
-    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id  UUID NOT NULL REFERENCES tenants(id),
+    id         TEXT PRIMARY KEY,
+    tenant_id  TEXT NOT NULL REFERENCES tenants(id),
     token_hash TEXT NOT NULL UNIQUE,
-    created_by UUID NOT NULL REFERENCES users(id),
+    created_by TEXT NOT NULL REFERENCES users(id),
     scope      JSONB,
     used_at    TIMESTAMPTZ,
     expires_at TIMESTAMPTZ NOT NULL,
@@ -229,38 +228,38 @@ CREATE TABLE enrollment_tokens (
 -- ─── Signing Keys ───────────────────────────────────────
 
 CREATE TABLE signing_keys (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID NOT NULL REFERENCES tenants(id),
+    id          TEXT PRIMARY KEY,
+    tenant_id   TEXT NOT NULL REFERENCES tenants(id),
     name        TEXT NOT NULL,
     algorithm   TEXT NOT NULL DEFAULT 'ed25519',
     public_key  TEXT NOT NULL,
     fingerprint TEXT NOT NULL,
-    created_by  UUID REFERENCES users(id),
+    created_by  TEXT REFERENCES users(id),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ─── Files ──────────────────────────────────────────────
 
 CREATE TABLE files (
-    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id          UUID NOT NULL REFERENCES tenants(id),
+    id                 TEXT PRIMARY KEY,
+    tenant_id          TEXT NOT NULL REFERENCES tenants(id),
     filename           TEXT NOT NULL,
     size_bytes         BIGINT NOT NULL,
     sha256             TEXT NOT NULL,
     signature          TEXT,
-    signature_key_id   UUID REFERENCES signing_keys(id),
+    signature_key_id   TEXT REFERENCES signing_keys(id),
     signature_verified BOOLEAN NOT NULL DEFAULT FALSE,
     mime_type          TEXT,
     storage_backend    TEXT NOT NULL,
     storage_path       TEXT NOT NULL,
-    created_by         UUID REFERENCES users(id),
+    created_by         TEXT REFERENCES users(id),
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE file_uploads (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    file_id          UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-    tenant_id        UUID NOT NULL REFERENCES tenants(id),
+    id               TEXT PRIMARY KEY,
+    file_id          TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    tenant_id        TEXT NOT NULL REFERENCES tenants(id),
     chunk_size_bytes INT NOT NULL,
     total_chunks     INT NOT NULL,
     uploaded_chunks  INT[] NOT NULL DEFAULT '{}',
@@ -272,7 +271,7 @@ CREATE TABLE file_uploads (
 -- ─── Agent Versions ─────────────────────────────────────
 
 CREATE TABLE agent_versions (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id          TEXT PRIMARY KEY,
     version     TEXT NOT NULL UNIQUE,
     channel     TEXT NOT NULL,
     changelog   TEXT,
@@ -282,21 +281,21 @@ CREATE TABLE agent_versions (
 );
 
 CREATE TABLE agent_version_binaries (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_version_id UUID NOT NULL REFERENCES agent_versions(id) ON DELETE CASCADE,
+    id               TEXT PRIMARY KEY,
+    agent_version_id TEXT NOT NULL REFERENCES agent_versions(id) ON DELETE CASCADE,
     os               TEXT NOT NULL,
     arch             TEXT NOT NULL,
-    file_id          UUID NOT NULL REFERENCES files(id),
+    file_id          TEXT NOT NULL REFERENCES files(id),
     sha256           TEXT NOT NULL,
     signature        TEXT NOT NULL,
-    signature_key_id UUID NOT NULL REFERENCES signing_keys(id),
+    signature_key_id TEXT NOT NULL REFERENCES signing_keys(id),
     UNIQUE (agent_version_id, os, arch)
 );
 
 CREATE TABLE agent_update_policies (
-    id                             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id                      UUID NOT NULL REFERENCES tenants(id),
-    group_id                       UUID REFERENCES groups(id),
+    id                             TEXT PRIMARY KEY,
+    tenant_id                      TEXT NOT NULL REFERENCES tenants(id),
+    group_id                       TEXT REFERENCES groups(id),
     enabled                        BOOLEAN NOT NULL DEFAULT TRUE,
     channel                        TEXT NOT NULL DEFAULT 'stable',
     schedule                       TEXT,
@@ -309,15 +308,15 @@ CREATE TABLE agent_update_policies (
 -- ─── Installers ─────────────────────────────────────────
 
 CREATE TABLE installers (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id               TEXT PRIMARY KEY,
     version          TEXT NOT NULL,
     channel          TEXT NOT NULL,
     os               TEXT NOT NULL,
     arch             TEXT NOT NULL,
-    file_id          UUID NOT NULL REFERENCES files(id),
+    file_id          TEXT NOT NULL REFERENCES files(id),
     sha256           TEXT NOT NULL,
     signature        TEXT NOT NULL,
-    signature_key_id UUID NOT NULL REFERENCES signing_keys(id),
+    signature_key_id TEXT NOT NULL REFERENCES signing_keys(id),
     released_at      TIMESTAMPTZ NOT NULL,
     yanked           BOOLEAN NOT NULL DEFAULT FALSE,
     yank_reason      TEXT,

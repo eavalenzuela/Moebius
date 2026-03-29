@@ -26,6 +26,7 @@ import (
 	"github.com/moebius-oss/moebius/server/pki"
 	"github.com/moebius-oss/moebius/server/rbac"
 	"github.com/moebius-oss/moebius/server/store"
+	"github.com/moebius-oss/moebius/shared/models"
 	"github.com/moebius-oss/moebius/shared/version"
 )
 
@@ -186,55 +187,59 @@ func doCreateAdmin() error {
 	}
 
 	// Create tenant
-	var tenantID string
-	err = pool.QueryRow(ctx,
-		`INSERT INTO tenants (name, slug) VALUES ($1, $2)
-		 ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
-		 RETURNING id`,
-		tenantName, "default",
-	).Scan(&tenantID)
+	tenantID := models.NewTenantID()
+	_, err = pool.Exec(ctx,
+		`INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3)
+		 ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name`,
+		tenantID, tenantName, "default",
+	)
 	if err != nil {
 		return fmt.Errorf("create tenant: %w", err)
+	}
+	// Re-read the ID in case ON CONFLICT matched an existing row
+	err = pool.QueryRow(ctx, `SELECT id FROM tenants WHERE slug = $1`, "default").Scan(&tenantID)
+	if err != nil {
+		return fmt.Errorf("get tenant id: %w", err)
 	}
 
 	// Create Super Admin system role
 	permsJSON, _ := json.Marshal(rbac.SuperAdminPermissions)
-	var roleID string
+	roleID := models.NewRoleID()
+	_, err = pool.Exec(ctx,
+		`INSERT INTO roles (id, name, permissions, is_custom)
+		 VALUES ($1, $2, $3, FALSE)
+		 ON CONFLICT DO NOTHING`,
+		roleID, "Super Admin", permsJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("create admin role: %w", err)
+	}
+	// Re-read in case it already existed
 	err = pool.QueryRow(ctx,
-		`INSERT INTO roles (name, permissions, is_custom)
-		 VALUES ($1, $2, FALSE)
-		 ON CONFLICT DO NOTHING
-		 RETURNING id`,
-		"Super Admin", permsJSON,
+		`SELECT id FROM roles WHERE name = $1 AND is_custom = FALSE`, "Super Admin",
 	).Scan(&roleID)
 	if err != nil {
-		// Role may already exist, try to fetch it
-		err = pool.QueryRow(ctx,
-			`SELECT id FROM roles WHERE name = $1 AND is_custom = FALSE`, "Super Admin",
-		).Scan(&roleID)
-		if err != nil {
-			return fmt.Errorf("create/get admin role: %w", err)
-		}
+		return fmt.Errorf("get admin role id: %w", err)
 	}
 
 	// Create admin user
-	var userID string
+	userID := models.NewUserID()
+	_, err = pool.Exec(ctx,
+		`INSERT INTO users (id, tenant_id, email, role_id)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT DO NOTHING`,
+		userID, tenantID, "admin@localhost", roleID,
+	)
+	if err != nil {
+		return fmt.Errorf("create admin user: %w", err)
+	}
+	// Re-read in case it already existed
 	err = pool.QueryRow(ctx,
-		`INSERT INTO users (tenant_id, email, role_id)
-		 VALUES ($1, $2, $3)
-		 ON CONFLICT DO NOTHING
-		 RETURNING id`,
-		tenantID, "admin@localhost", roleID,
+		`SELECT id FROM users WHERE tenant_id = $1 AND email = $2`,
+		tenantID, "admin@localhost",
 	).Scan(&userID)
 	if err != nil {
-		// User may already exist
-		err = pool.QueryRow(ctx,
-			`SELECT id FROM users WHERE tenant_id = $1 AND email = $2`,
-			tenantID, "admin@localhost",
-		).Scan(&userID)
-		if err != nil {
-			return fmt.Errorf("create/get admin user: %w", err)
-		}
+		return fmt.Errorf("get admin user id: %w", err)
 	}
 
 	// Generate API key
@@ -243,9 +248,9 @@ func doCreateAdmin() error {
 	keyHash := hex.EncodeToString(hash[:])
 
 	_, err = pool.Exec(ctx,
-		`INSERT INTO api_keys (tenant_id, user_id, name, key_hash, role_id, is_admin)
-		 VALUES ($1, $2, $3, $4, $5, TRUE)`,
-		tenantID, userID, "bootstrap-admin", keyHash, roleID,
+		`INSERT INTO api_keys (id, tenant_id, user_id, name, key_hash, role_id, is_admin)
+		 VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
+		models.NewAPIKeyID(), tenantID, userID, "bootstrap-admin", keyHash, roleID,
 	)
 	if err != nil {
 		return fmt.Errorf("create API key: %w", err)

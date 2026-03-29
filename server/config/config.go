@@ -65,7 +65,7 @@ func Load(proc Process) (*Config, error) {
 		CACertPath:        os.Getenv("CA_CERT_PATH"),
 		CAKeyPath:         os.Getenv("CA_KEY_PATH"),
 		StorageBackend:    envOrDefault("STORAGE_BACKEND", "local"),
-		StoragePath:       os.Getenv("STORAGE_PATH"),
+		StoragePath:       envOrDefault("STORAGE_PATH", "/tmp/moebius-storage"),
 		S3Endpoint:        os.Getenv("S3_ENDPOINT"),
 		S3Bucket:          os.Getenv("S3_BUCKET"),
 		S3Region:          os.Getenv("S3_REGION"),
@@ -90,7 +90,9 @@ func (c *Config) validate(proc Process) error {
 	if c.DatabaseURL == "" {
 		missing = append(missing, "DATABASE_URL")
 	}
-	if c.NATSURL == "" {
+
+	// NATS is required for worker and scheduler, optional for API
+	if proc != ProcessAPI && c.NATSURL == "" {
 		missing = append(missing, "NATS_URL")
 	}
 

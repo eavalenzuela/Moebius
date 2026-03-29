@@ -91,7 +91,7 @@ func (h *UsersHandler) Invite(w http.ResponseWriter, r *http.Request) {
 		ID:        models.NewUserID(),
 		TenantID:  tenantID,
 		Email:     req.Email,
-		RoleID:    req.RoleID,
+		RoleID:    &req.RoleID,
 		CreatedAt: time.Now().UTC(),
 	}
 

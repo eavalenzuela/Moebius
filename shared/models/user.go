@@ -6,8 +6,8 @@ type User struct {
 	ID         string    `json:"id"`
 	TenantID   string    `json:"tenant_id"`
 	Email      string    `json:"email"`
-	RoleID     string    `json:"role_id,omitempty"`
-	SSOSubject string    `json:"sso_subject,omitempty"`
+	RoleID     *string   `json:"role_id,omitempty"`
+	SSOSubject *string   `json:"sso_subject,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
