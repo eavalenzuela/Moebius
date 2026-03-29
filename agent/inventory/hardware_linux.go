@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moebius-oss/moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/models"
 )
 
 func collectHardware() (*models.HardwareInventory, error) {

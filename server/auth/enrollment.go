@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 const defaultTokenExpiry = 24 * time.Hour

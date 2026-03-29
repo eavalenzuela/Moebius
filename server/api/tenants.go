@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/moebius-oss/moebius/server/auth"
-	"github.com/moebius-oss/moebius/server/store"
-	"github.com/moebius-oss/moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/store"
+	"github.com/eavalenzuela/Moebius/shared/models"
 )
 
 // TenantHandler handles /v1/tenant endpoints.

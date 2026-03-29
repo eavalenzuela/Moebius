@@ -3,7 +3,7 @@ package jobs
 import (
 	"testing"
 
-	"github.com/moebius-oss/moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/models"
 )
 
 func TestValidateType_AllKnown(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/moebius-oss/moebius/shared/models"
-	"github.com/moebius-oss/moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 // Collector gathers hardware and package inventory and computes deltas.

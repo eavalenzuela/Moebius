@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moebius-oss/moebius/shared/version"
+	"github.com/eavalenzuela/Moebius/shared/version"
 )
 
 func main() {

@@ -17,8 +17,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/moebius-oss/moebius/shared/protocol"
-	"github.com/moebius-oss/moebius/shared/version"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/version"
 )
 
 // Result holds the data returned by a successful enrollment.

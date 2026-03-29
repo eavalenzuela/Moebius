@@ -3,7 +3,7 @@ package rbac
 import (
 	"net/http"
 
-	"github.com/moebius-oss/moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/auth"
 )
 
 // Require returns middleware that checks the authenticated user has the

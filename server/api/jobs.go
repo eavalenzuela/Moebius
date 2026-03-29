@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/server/audit"
+	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/jobs"
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/moebius-oss/moebius/server/audit"
-	"github.com/moebius-oss/moebius/server/auth"
-	"github.com/moebius-oss/moebius/server/jobs"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 // JobsHandler handles /v1/jobs endpoints.

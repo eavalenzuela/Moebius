@@ -14,8 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/moebius-oss/moebius/shared/protocol"
-	"github.com/moebius-oss/moebius/shared/version"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/version"
 )
 
 // JobHandler is called for each job received in a check-in response.

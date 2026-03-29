@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/jackc/pgx/v5"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 // ListAPIKeys returns API keys for a tenant (without key hashes).

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/moebius-oss/moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 func TestPkgKey(t *testing.T) {

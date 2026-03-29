@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/eavalenzuela/Moebius/server/audit"
+	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/store"
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/go-chi/chi/v5"
-	"github.com/moebius-oss/moebius/server/audit"
-	"github.com/moebius-oss/moebius/server/auth"
-	"github.com/moebius-oss/moebius/server/store"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 // DevicesHandler handles /v1/devices endpoints.

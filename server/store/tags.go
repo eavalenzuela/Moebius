@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moebius-oss/moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/models"
 )
 
 func (s *Store) ListTags(ctx context.Context, tenantID string) ([]models.Tag, error) {

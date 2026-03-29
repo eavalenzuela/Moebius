@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/jackc/pgx/v5"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 // DeviceFilters holds optional filters for listing devices.

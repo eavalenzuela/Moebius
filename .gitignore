@@ -35,8 +35,9 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
-# Keys (keep release.pub, ignore private keys)
+# Keys (keep release.pub, ignore private keys and generated certs)
 keys/*.key
+keys/*.crt
 !keys/release.pub
 
 # Node (ui/)

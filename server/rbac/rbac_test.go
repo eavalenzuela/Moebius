@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moebius-oss/moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/auth"
 )
 
 func TestRequire_Allowed(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moebius-oss/moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/models"
 )
 
 func TestExtractBearerToken(t *testing.T) {

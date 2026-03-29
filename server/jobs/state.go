@@ -3,7 +3,7 @@ package jobs
 import (
 	"fmt"
 
-	"github.com/moebius-oss/moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/models"
 )
 
 // validTransitions defines the allowed state transitions for the job state machine.

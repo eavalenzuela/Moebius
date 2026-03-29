@@ -10,7 +10,7 @@ import (
 
 	"log/slog"
 
-	"github.com/moebius-oss/moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 func TestEnroll_Success(t *testing.T) {

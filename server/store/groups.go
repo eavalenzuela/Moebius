@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/jackc/pgx/v5"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 func (s *Store) ListGroups(ctx context.Context, tenantID string) ([]models.Group, error) {

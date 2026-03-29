@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moebius-oss/moebius/server/metrics"
+	"github.com/eavalenzuela/Moebius/server/metrics"
 )
 
 type contextKey string

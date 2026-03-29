@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/jackc/pgx/v5"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 // GetTenant returns a tenant by ID.

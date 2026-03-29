@@ -5,7 +5,7 @@ VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 
 GIT_COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME  ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
-MODULE  = github.com/moebius-oss/moebius
+MODULE  = github.com/eavalenzuela/Moebius
 LDFLAGS = -X $(MODULE)/shared/version.Version=$(VERSION) \
           -X $(MODULE)/shared/version.GitCommit=$(GIT_COMMIT) \
           -X $(MODULE)/shared/version.BuildTime=$(BUILD_TIME)
@@ -100,7 +100,7 @@ migrate: ## Run database migrations
 
 # ─── Docker ─────────────────────────────────────────────
 
-DOCKER_REGISTRY ?= ghcr.io/moebius-oss
+DOCKER_REGISTRY ?= ghcr.io/eavalenzuela
 DOCKER_TAG      ?= $(VERSION)
 
 .PHONY: docker-build

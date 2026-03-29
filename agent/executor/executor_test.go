@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/moebius-oss/moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 func TestExecuteExec_Success(t *testing.T) {

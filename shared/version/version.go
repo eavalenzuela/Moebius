@@ -2,9 +2,9 @@ package version
 
 // Set at build time via -ldflags:
 //
-//	go build -ldflags "-X github.com/moebius-oss/moebius/shared/version.Version=1.0.0
-//	  -X github.com/moebius-oss/moebius/shared/version.GitCommit=$(git rev-parse --short HEAD)
-//	  -X github.com/moebius-oss/moebius/shared/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+//	go build -ldflags "-X github.com/eavalenzuela/Moebius/shared/version.Version=1.0.0
+//	  -X github.com/eavalenzuela/Moebius/shared/version.GitCommit=$(git rev-parse --short HEAD)
+//	  -X github.com/eavalenzuela/Moebius/shared/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
 	Version   = "dev"
 	GitCommit = "unknown"

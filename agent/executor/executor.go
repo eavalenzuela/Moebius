@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moebius-oss/moebius/agent/inventory"
-	"github.com/moebius-oss/moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/agent/inventory"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 // Executor receives jobs from the poller and runs them.

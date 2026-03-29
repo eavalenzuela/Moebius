@@ -2,7 +2,7 @@
 
 package inventory
 
-import "github.com/moebius-oss/moebius/shared/models"
+import "github.com/eavalenzuela/Moebius/shared/models"
 
 func collectHardware() (*models.HardwareInventory, error) {
 	// TODO: implement Windows hardware collection via WMI

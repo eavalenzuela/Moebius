@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/moebius-oss/moebius/shared/version"
+	"github.com/eavalenzuela/Moebius/shared/version"
 )
 
 // New creates a configured slog.Logger.

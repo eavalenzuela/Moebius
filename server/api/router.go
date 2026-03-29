@@ -8,12 +8,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/moebius-oss/moebius/server/audit"
-	"github.com/moebius-oss/moebius/server/auth"
-	"github.com/moebius-oss/moebius/server/health"
-	"github.com/moebius-oss/moebius/server/pki"
-	"github.com/moebius-oss/moebius/server/rbac"
-	"github.com/moebius-oss/moebius/server/store"
+	"github.com/eavalenzuela/Moebius/server/audit"
+	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/health"
+	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/server/rbac"
+	"github.com/eavalenzuela/Moebius/server/store"
 )
 
 // RouterConfig holds the dependencies needed to build the API router.

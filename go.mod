@@ -1,4 +1,4 @@
-module github.com/moebius-oss/moebius
+module github.com/eavalenzuela/Moebius
 
 go 1.25.0
 

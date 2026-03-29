@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moebius-oss/moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 // RenewalThreshold is the duration before cert expiry at which renewal begins.

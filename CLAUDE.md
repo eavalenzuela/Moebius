@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Moebius is a FOSS device management platform (agent + server) written in Go. It manages Windows and Linux endpoints at scale using a poll-based architecture with mTLS authentication.
 
-**Module:** `github.com/moebius-oss/moebius`
+**Module:** `github.com/eavalenzuela/Moebius`
 
 ## Architecture
 

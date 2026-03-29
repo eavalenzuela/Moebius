@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/moebius-oss/moebius/server/auth"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 type InventoryHandler struct {

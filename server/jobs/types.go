@@ -3,7 +3,7 @@ package jobs
 import (
 	"fmt"
 
-	"github.com/moebius-oss/moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/models"
 )
 
 // allJobTypes is the complete set of recognized job types.

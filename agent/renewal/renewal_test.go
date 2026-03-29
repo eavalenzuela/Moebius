@@ -18,7 +18,7 @@ import (
 
 	"log/slog"
 
-	"github.com/moebius-oss/moebius/shared/protocol"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 func TestNeedsRenewal_NotYet(t *testing.T) {

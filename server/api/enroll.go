@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/server/audit"
+	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/shared/models"
+	"github.com/eavalenzuela/Moebius/shared/protocol"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/moebius-oss/moebius/server/audit"
-	"github.com/moebius-oss/moebius/server/auth"
-	"github.com/moebius-oss/moebius/server/pki"
-	"github.com/moebius-oss/moebius/shared/models"
-	"github.com/moebius-oss/moebius/shared/protocol"
 )
 
 const defaultCertValidity = 90 * 24 * time.Hour

@@ -11,17 +11,17 @@ import (
 	"runtime"
 	"syscall"
 
-	agentconfig "github.com/moebius-oss/moebius/agent/config"
-	"github.com/moebius-oss/moebius/agent/enrollment"
-	"github.com/moebius-oss/moebius/agent/executor"
-	"github.com/moebius-oss/moebius/agent/inventory"
-	"github.com/moebius-oss/moebius/agent/platform"
-	linuxplatform "github.com/moebius-oss/moebius/agent/platform/linux"
-	windowsplatform "github.com/moebius-oss/moebius/agent/platform/windows"
-	"github.com/moebius-oss/moebius/agent/poller"
-	"github.com/moebius-oss/moebius/agent/renewal"
-	"github.com/moebius-oss/moebius/agent/tlsutil"
-	"github.com/moebius-oss/moebius/shared/version"
+	agentconfig "github.com/eavalenzuela/Moebius/agent/config"
+	"github.com/eavalenzuela/Moebius/agent/enrollment"
+	"github.com/eavalenzuela/Moebius/agent/executor"
+	"github.com/eavalenzuela/Moebius/agent/inventory"
+	"github.com/eavalenzuela/Moebius/agent/platform"
+	linuxplatform "github.com/eavalenzuela/Moebius/agent/platform/linux"
+	windowsplatform "github.com/eavalenzuela/Moebius/agent/platform/windows"
+	"github.com/eavalenzuela/Moebius/agent/poller"
+	"github.com/eavalenzuela/Moebius/agent/renewal"
+	"github.com/eavalenzuela/Moebius/agent/tlsutil"
+	"github.com/eavalenzuela/Moebius/shared/version"
 )
 
 func main() {

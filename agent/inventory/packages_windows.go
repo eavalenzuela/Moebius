@@ -2,7 +2,7 @@
 
 package inventory
 
-import "github.com/moebius-oss/moebius/shared/protocol"
+import "github.com/eavalenzuela/Moebius/shared/protocol"
 
 func collectPackages() ([]protocol.PackageRef, error) {
 	// TODO: implement Windows package enumeration via registry/WMI

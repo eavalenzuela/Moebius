@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/jackc/pgx/v5"
-	"github.com/moebius-oss/moebius/shared/models"
 )
 
 // ListRoles returns system roles (tenant_id IS NULL) and tenant custom roles.
