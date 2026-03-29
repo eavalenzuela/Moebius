@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/agent/cdm"
 	"github.com/eavalenzuela/Moebius/agent/inventory"
 	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
@@ -23,15 +24,17 @@ type Executor struct {
 	client    *http.Client
 	log       *slog.Logger
 	inventory *inventory.Collector
+	cdm       *cdm.Manager
 }
 
 // New creates an Executor.
-func New(serverURL string, client *http.Client, inv *inventory.Collector, log *slog.Logger) *Executor {
+func New(serverURL string, client *http.Client, inv *inventory.Collector, cdmMgr *cdm.Manager, log *slog.Logger) *Executor {
 	return &Executor{
 		serverURL: strings.TrimRight(serverURL, "/"),
 		client:    client,
 		log:       log,
 		inventory: inv,
+		cdm:       cdmMgr,
 	}
 }
 
@@ -43,11 +46,28 @@ func (e *Executor) HandleJob(job protocol.JobDispatch) {
 func (e *Executor) runJob(ctx context.Context, job protocol.JobDispatch) {
 	e.log.Info("job received", slog.String("job_id", job.JobID), slog.String("type", job.Type))
 
+	// CDM gate: if CDM is enabled and no session, don't execute.
+	// The job was already dispatched by the server; it will be requeued
+	// to CDM_HOLD on the next check-in when we report no session.
+	if e.cdm != nil && !e.cdm.CanExecuteJob() {
+		e.log.Info("job held by CDM (no active session)",
+			slog.String("job_id", job.JobID))
+		return
+	}
+
 	// Acknowledge
 	if err := e.acknowledge(ctx, job.JobID); err != nil {
 		e.log.Error("failed to acknowledge job",
 			slog.String("job_id", job.JobID), slog.String("error", err.Error()))
 		return
+	}
+
+	// Log CDM job execution if session is active
+	if e.cdm != nil && e.cdm.Enabled() {
+		snap := e.cdm.Snapshot()
+		if snap.SessionActive && e.cdm.AuditLog() != nil {
+			e.cdm.AuditLog().LogJobExecution(job.JobID, job.Type, snap.SessionGrantedBy)
+		}
 	}
 
 	// Execute

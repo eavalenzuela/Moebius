@@ -17,6 +17,8 @@ type Platform interface {
 	ClientKeyPath() string       // client.key
 	SocketPath() string          // agent.sock or \\.\pipe\agent
 	AgentIDPath() string         // agent_id (persisted agent ID)
+	CDMStatePath() string        // cdm.json (CDM state persistence)
+	CDMAuditLogPath() string     // cdm-audit.log (CDM local audit)
 
 	// Service
 	ServiceName() string

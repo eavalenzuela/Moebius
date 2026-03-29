@@ -10,7 +10,9 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
+	"github.com/eavalenzuela/Moebius/agent/cdm"
 	agentconfig "github.com/eavalenzuela/Moebius/agent/config"
 	"github.com/eavalenzuela/Moebius/agent/enrollment"
 	"github.com/eavalenzuela/Moebius/agent/executor"
@@ -139,9 +141,17 @@ func runDaemon() error {
 		}
 	}
 
+	// Initialize CDM
+	cdmAudit := cdm.NewAuditLog(plat.CDMAuditLogPath())
+	cdmMgr, err := cdm.New(plat.CDMStatePath(), cdmAudit)
+	if err != nil {
+		return fmt.Errorf("initialize CDM: %w", err)
+	}
+	log.Info("CDM initialized", slog.Bool("enabled", cdmMgr.Enabled()))
+
 	// Start poller with executor and inventory
 	inv := inventory.New(log)
-	exec := executor.New(cfg.Server.URL, client, inv, log)
+	exec := executor.New(cfg.Server.URL, client, inv, cdmMgr, log)
 	p := poller.New(poller.Config{
 		ServerURL:     cfg.Server.URL,
 		AgentID:       agentID,
@@ -154,6 +164,21 @@ func runDaemon() error {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	// Feed CDM state to poller for check-in reporting
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				snap := cdmMgr.Snapshot()
+				p.SetCDMState(snap.Enabled, snap.SessionActive, snap.SessionExpiresAt)
+			}
+		}
+	}()
 
 	log.Info("agent started",
 		slog.String("agent_id", agentID),

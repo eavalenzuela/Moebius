@@ -403,7 +403,7 @@ Per `REST_API_SPEC.md`:
 
 ## Phase 9 — CDM (Customer Device Mode)
 
-- [ ] **9.1** CDM state machine (`agent/cdm/`)
+- [x] **9.1** CDM state machine (`agent/cdm/`)
 Per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` and `LOCAL_UI_CLI_SPEC.md`:
 - States: disabled, enabled (no session), enabled (session active)
 - Session properties: duration, expires_at, granted_by, granted_at
@@ -413,18 +413,18 @@ Per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` and `LOCAL_UI_CLI_SPEC.md`:
 - CDM toggle: enable/disable CDM entirely
 - State is local-authoritative — persisted to disk, reported to server via check-in
 
-- [ ] **9.2** CDM integration with executor
+- [x] **9.2** CDM integration with executor
 - Before executing a received job, check CDM state
 - If CDM enabled and no session → hold job locally (report to server as CDM_HOLD on next check-in)
 - If CDM enabled and session active → execute within session window
 - If session expires during execution → in-flight job completes, no new jobs started
 
-- [ ] **9.3** CDM state in check-in
+- [x] **9.3** CDM state in check-in
 - Always include `cdm_enabled`, `cdm_session_active`, `cdm_session_expires_at` in check-in status
 - Server mirrors these fields on the device record
 - Server uses CDM state to decide which jobs to dispatch per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` CDM signaling table
 
-- [ ] **9.4** CDM audit logging
+- [x] **9.4** CDM audit logging
 - Local audit log entries for: toggle, session grant, session revoke, session expiry, per-job execution during session
 - Stored in root/SYSTEM-only readable file on device
 

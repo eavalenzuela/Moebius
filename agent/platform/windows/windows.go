@@ -39,4 +39,12 @@ func (p *Platform) AgentIDPath() string {
 	return filepath.Join(p.ConfigDir(), "agent_id")
 }
 
+func (p *Platform) CDMStatePath() string {
+	return filepath.Join(p.DataDir(), "cdm.json")
+}
+
+func (p *Platform) CDMAuditLogPath() string {
+	return filepath.Join(p.DataDir(), "cdm-audit.log")
+}
+
 func (p *Platform) ServiceName() string { return "MoebiusAgent" }
