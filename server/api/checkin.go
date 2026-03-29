@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -73,6 +74,14 @@ func (h *CheckinHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to update device", slog.String("error", err.Error()))
 		Error(w, http.StatusInternalServerError, "failed to update device")
 		return
+	}
+
+	// Process inventory delta if present
+	if req.InventoryDelta != nil && req.InventoryDelta.Packages != nil {
+		if err := h.processPackageDelta(ctx, agentID, req.InventoryDelta.Packages); err != nil {
+			h.log.Error("failed to process inventory delta", slog.String("error", err.Error()))
+			// Non-fatal — continue
+		}
 	}
 
 	// Auto-requeue dispatched jobs that the agent missed (DISPATCHED → QUEUED)
@@ -179,4 +188,49 @@ func (h *CheckinHandler) fetchDispatchableJobs(
 		result = append(result, j)
 	}
 	return result, rows.Err()
+}
+
+// processPackageDelta applies a package delta from the agent check-in.
+func (h *CheckinHandler) processPackageDelta(ctx context.Context, deviceID string, delta *protocol.PackageDelta) error {
+	now := time.Now().UTC()
+
+	// Added packages
+	for _, p := range delta.Added {
+		_, err := h.pool.Exec(ctx,
+			`INSERT INTO inventory_packages (id, device_id, name, version, manager, last_seen_at)
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 ON CONFLICT DO NOTHING`,
+			models.NewInventoryPkgID(), deviceID, p.Name, p.Version, p.Manager, now,
+		)
+		if err != nil {
+			return fmt.Errorf("insert package %s: %w", p.Name, err)
+		}
+	}
+
+	// Updated packages
+	for _, p := range delta.Updated {
+		_, err := h.pool.Exec(ctx,
+			`UPDATE inventory_packages
+			 SET version = $1, last_seen_at = $2
+			 WHERE device_id = $3 AND name = $4 AND manager = $5`,
+			p.Version, now, deviceID, p.Name, p.Manager,
+		)
+		if err != nil {
+			return fmt.Errorf("update package %s: %w", p.Name, err)
+		}
+	}
+
+	// Removed packages
+	for _, p := range delta.Removed {
+		_, err := h.pool.Exec(ctx,
+			`DELETE FROM inventory_packages
+			 WHERE device_id = $1 AND name = $2 AND manager = $3`,
+			deviceID, p.Name, p.Manager,
+		)
+		if err != nil {
+			return fmt.Errorf("delete package %s: %w", p.Name, err)
+		}
+	}
+
+	return nil
 }

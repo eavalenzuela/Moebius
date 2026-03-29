@@ -14,6 +14,7 @@ import (
 	agentconfig "github.com/moebius-oss/moebius/agent/config"
 	"github.com/moebius-oss/moebius/agent/enrollment"
 	"github.com/moebius-oss/moebius/agent/executor"
+	"github.com/moebius-oss/moebius/agent/inventory"
 	"github.com/moebius-oss/moebius/agent/platform"
 	linuxplatform "github.com/moebius-oss/moebius/agent/platform/linux"
 	windowsplatform "github.com/moebius-oss/moebius/agent/platform/windows"
@@ -138,15 +139,17 @@ func runDaemon() error {
 		}
 	}
 
-	// Start poller with executor
-	exec := executor.New(cfg.Server.URL, client, log)
+	// Start poller with executor and inventory
+	inv := inventory.New(log)
+	exec := executor.New(cfg.Server.URL, client, inv, log)
 	p := poller.New(poller.Config{
-		ServerURL:    cfg.Server.URL,
-		AgentID:      agentID,
-		PollInterval: cfg.Server.PollIntervalSeconds,
-		Client:       client,
-		Log:          log,
-		JobHandler:   exec.HandleJob,
+		ServerURL:     cfg.Server.URL,
+		AgentID:       agentID,
+		PollInterval:  cfg.Server.PollIntervalSeconds,
+		Client:        client,
+		Log:           log,
+		JobHandler:    exec.HandleJob,
+		DeltaProvider: inv.ComputeDelta,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

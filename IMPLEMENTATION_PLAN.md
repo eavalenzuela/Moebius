@@ -370,31 +370,31 @@ Per `REST_API_SPEC.md`:
 
 ## Phase 8 — Inventory Collection
 
-- [ ] **8.1** Hardware inventory collector (`agent/inventory/`)
+- [x] **8.1** Hardware inventory collector (`agent/inventory/`)
 - CPU: model, cores, threads
 - RAM: total MB
 - Disks: device, size, type, mount point
 - Network interfaces: name, MAC, IPs
 - Platform-specific implementations in `agent/platform/{linux,windows}/`
 
-- [ ] **8.2** Software/package inventory collector
+- [x] **8.2** Software/package inventory collector
 - Linux: `dpkg-query` (Debian/Ubuntu), `rpm -qa` (RHEL/Fedora)
 - Windows: WMI `Win32_Product` or registry-based enumeration
 - Return: package name, version, manager, installed_at
 
-- [ ] **8.3** Delta inventory computation
+- [x] **8.3** Delta inventory computation
 - Compare current inventory snapshot against last-sent snapshot
 - Produce delta: `packages.added`, `packages.removed`, `packages.updated`
 - Include delta in check-in request body (omit if empty per spec)
 
-- [ ] **8.4** Full inventory job handler
+- [x] **8.4** Full inventory job handler
 - Handle `inventory_full` job type in executor
 - Collect full hardware + software inventory
 - Ship as job result
 - Server stores to `inventory_hardware` and `inventory_packages` tables
 - Server can request on-demand via job queue
 
-- [ ] **8.5** Server-side inventory storage
+- [x] **8.5** Server-side inventory storage
 - Upsert hardware inventory on full collection
 - Upsert/insert/delete packages based on delta
 - Track `last_seen_at` on packages for staleness detection

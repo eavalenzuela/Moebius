@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moebius-oss/moebius/agent/inventory"
 	"github.com/moebius-oss/moebius/shared/protocol"
 )
 
@@ -21,14 +22,16 @@ type Executor struct {
 	serverURL string
 	client    *http.Client
 	log       *slog.Logger
+	inventory *inventory.Collector
 }
 
 // New creates an Executor.
-func New(serverURL string, client *http.Client, log *slog.Logger) *Executor {
+func New(serverURL string, client *http.Client, inv *inventory.Collector, log *slog.Logger) *Executor {
 	return &Executor{
 		serverURL: strings.TrimRight(serverURL, "/"),
 		client:    client,
 		log:       log,
+		inventory: inv,
 	}
 }
 
@@ -71,11 +74,27 @@ func (e *Executor) execute(ctx context.Context, job protocol.JobDispatch) protoc
 	switch job.Type {
 	case "exec":
 		return e.executeExec(ctx, job.Payload)
+	case "inventory_full":
+		return e.executeInventoryFull()
 	default:
 		return protocol.JobResultSubmission{
 			Status:  "failed",
 			Message: fmt.Sprintf("unsupported job type: %s", job.Type),
 		}
+	}
+}
+
+func (e *Executor) executeInventoryFull() protocol.JobResultSubmission {
+	if e.inventory == nil {
+		return protocol.JobResultSubmission{
+			Status:  "failed",
+			Message: "inventory collector not configured",
+		}
+	}
+	data := e.inventory.CollectFull()
+	return protocol.JobResultSubmission{
+		Status: "completed",
+		Stdout: string(data),
 	}
 }
 

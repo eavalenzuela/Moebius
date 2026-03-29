@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -158,12 +159,80 @@ func (h *AgentJobsHandler) SubmitResult(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Process full inventory result if applicable
+	if jobType == models.JobTypeInventoryFull && targetStatus == models.JobStatusCompleted {
+		if err := h.processFullInventory(ctx, agentID, req.Stdout); err != nil {
+			h.log.Error("failed to process full inventory", slog.String("error", err.Error()))
+			// Non-fatal — the job result is already stored
+		}
+	}
+
 	// Handle auto-retry
 	if jobs.ShouldRetry(targetStatus, retryCount, maxRetries) {
 		h.createRetryJob(ctx, jobID, tenantID, agentID, jobType, retryCount+1, maxRetries)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// processFullInventory stores hardware and package data from an inventory_full job result.
+func (h *AgentJobsHandler) processFullInventory(ctx context.Context, deviceID, resultData string) error {
+	var inv struct {
+		Hardware *fullInventoryHW `json:"hardware,omitempty"`
+		Packages []struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+			Manager string `json:"manager"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal([]byte(resultData), &inv); err != nil {
+		return fmt.Errorf("unmarshal inventory: %w", err)
+	}
+
+	now := time.Now().UTC()
+
+	// Upsert hardware: delete old, insert new
+	if inv.Hardware != nil {
+		_, _ = h.pool.Exec(ctx, `DELETE FROM inventory_hardware WHERE device_id = $1`, deviceID)
+
+		cpuJSON, _ := json.Marshal(inv.Hardware.CPU)
+		disksJSON, _ := json.Marshal(inv.Hardware.Disks)
+		nicsJSON, _ := json.Marshal(inv.Hardware.NetworkInterfaces)
+
+		_, err := h.pool.Exec(ctx,
+			`INSERT INTO inventory_hardware (id, device_id, collected_at, cpu, ram_mb, disks, network_interfaces)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			models.NewInventoryHWID(), deviceID, now, cpuJSON, inv.Hardware.RAMMB, disksJSON, nicsJSON,
+		)
+		if err != nil {
+			return fmt.Errorf("insert hardware: %w", err)
+		}
+	}
+
+	// Replace all packages: delete old, insert new
+	if len(inv.Packages) > 0 {
+		_, _ = h.pool.Exec(ctx, `DELETE FROM inventory_packages WHERE device_id = $1`, deviceID)
+
+		for _, p := range inv.Packages {
+			_, err := h.pool.Exec(ctx,
+				`INSERT INTO inventory_packages (id, device_id, name, version, manager, last_seen_at)
+				 VALUES ($1, $2, $3, $4, $5, $6)`,
+				models.NewInventoryPkgID(), deviceID, p.Name, p.Version, p.Manager, now,
+			)
+			if err != nil {
+				return fmt.Errorf("insert package %s: %w", p.Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+type fullInventoryHW struct {
+	CPU               json.RawMessage `json:"cpu,omitempty"`
+	RAMMB             int64           `json:"ram_mb,omitempty"`
+	Disks             json.RawMessage `json:"disks,omitempty"`
+	NetworkInterfaces json.RawMessage `json:"network_interfaces,omitempty"`
 }
 
 // createRetryJob creates a new job record linked to the parent for retry.

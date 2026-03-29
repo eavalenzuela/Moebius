@@ -32,7 +32,8 @@ type Poller struct {
 	sequence     atomic.Int64
 	startTime    time.Time
 
-	jobHandler JobHandler
+	jobHandler    JobHandler
+	deltaProvider DeltaProvider
 
 	// CDM state — set externally by the CDM package (future phase)
 	mu                  sync.RWMutex
@@ -41,25 +42,30 @@ type Poller struct {
 	cdmSessionExpiresAt *time.Time
 }
 
+// DeltaProvider returns an inventory delta for inclusion in check-in, or nil.
+type DeltaProvider func() *protocol.InventoryDelta
+
 // Config holds the initial poller configuration.
 type Config struct {
-	ServerURL    string
-	AgentID      string
-	PollInterval int // seconds
-	Client       *http.Client
-	Log          *slog.Logger
-	JobHandler   JobHandler
+	ServerURL     string
+	AgentID       string
+	PollInterval  int // seconds
+	Client        *http.Client
+	Log           *slog.Logger
+	JobHandler    JobHandler
+	DeltaProvider DeltaProvider
 }
 
 // New creates a new Poller with the given configuration.
 func New(cfg Config) *Poller {
 	p := &Poller{
-		serverURL:  cfg.ServerURL,
-		agentID:    cfg.AgentID,
-		client:     cfg.Client,
-		log:        cfg.Log,
-		startTime:  time.Now(),
-		jobHandler: cfg.JobHandler,
+		serverURL:     cfg.ServerURL,
+		agentID:       cfg.AgentID,
+		client:        cfg.Client,
+		log:           cfg.Log,
+		startTime:     time.Now(),
+		jobHandler:    cfg.JobHandler,
+		deltaProvider: cfg.DeltaProvider,
 	}
 	p.pollInterval.Store(int64(cfg.PollInterval))
 	return p
@@ -125,12 +131,17 @@ func (p *Poller) checkin(ctx context.Context) {
 	}
 	p.mu.RUnlock()
 
+	var delta *protocol.InventoryDelta
+	if p.deltaProvider != nil {
+		delta = p.deltaProvider()
+	}
+
 	req := protocol.CheckinRequest{
-		AgentID:   p.agentID,
-		Timestamp: time.Now().UTC(),
-		Sequence:  seq,
-		Status:    status,
-		// InventoryDelta populated by inventory package in future phase
+		AgentID:        p.agentID,
+		Timestamp:      time.Now().UTC(),
+		Sequence:       seq,
+		Status:         status,
+		InventoryDelta: delta,
 	}
 
 	resp, err := p.postCheckin(ctx, &req)
