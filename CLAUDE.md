@@ -80,4 +80,16 @@ Version is injected at build time via `-ldflags` from `shared/version` package.
 - `server/health` — liveness (`/health`) and readiness (`/health/ready`) HTTP handlers
 - `server/audit` — append-only audit log writes to PostgreSQL
 
+**Server infrastructure (Phase 6.0):**
+- `server/migrate` — embedded SQL migration runner using Go `embed.FS`. Owns the `schema_migrations` table (migration SQL files must NOT create or insert into it). Files in `server/migrate/sql/` (Go embed) and `deploy/migrations/` (canonical copy).
+- `server/cmd/api/main.go` — wires `runServer()`, `runMigrate()`, `runCreateAdmin()`, `runGenerateCA()`. Uses `health.New(map[string]health.Checker{"database": st})` for health checks. Functions that connect to DB and also call `os.Exit` must extract logic into a `doXxx() error` helper to avoid gocritic `exitAfterDefer` (defer won't run if os.Exit is called).
+- Bootstrap admin (`create-admin` subcommand) — creates default tenant (slug "default"), Super Admin role with `rbac.SuperAdminPermissions`, admin user (admin@localhost), and `sk_`-prefixed API key printed once.
+
+**Job lifecycle (Phase 6):**
+- `server/jobs/` — pure state machine logic: `ValidateTransition()`, `ValidateType()`, `DefaultRetryPolicy()`, `ShouldRetry()`, `IsCancellable()`. No DB dependency.
+- `server/api/checkin.go` — `POST /v1/agents/checkin` (mTLS). Updates device, auto-requeues stale dispatched jobs, applies CDM hold/release logic, dispatches up to 10 queued jobs.
+- `server/api/jobs.go` — `POST /v1/jobs` (API key auth). Resolves targets (groups/tags/sites → device IDs), creates one job per device with default retry policies. Also `GET /v1/jobs`, `GET /v1/jobs/{job_id}`, `POST .../cancel`, `POST .../retry`.
+- `server/api/agent_jobs.go` — `POST /v1/agents/jobs/{job_id}/acknowledge` and `.../result` (mTLS). Result handler stores to `job_results`, auto-retries via new linked job with `parent_job_id`.
+- `agent/executor/` — receives jobs from poller, acknowledges, executes (`exec` type: shell with timeout), reports results. Wired into `agent/cmd/agent/main.go` via `exec.HandleJob` as poller's `JobHandler`.
+
 **Stack:** Go, PostgreSQL, NATS JetStream. Migrations in `deploy/migrations/`. Docker images in `deploy/docker/`.

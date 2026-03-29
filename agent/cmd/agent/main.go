@@ -13,13 +13,13 @@ import (
 
 	agentconfig "github.com/moebius-oss/moebius/agent/config"
 	"github.com/moebius-oss/moebius/agent/enrollment"
+	"github.com/moebius-oss/moebius/agent/executor"
 	"github.com/moebius-oss/moebius/agent/platform"
 	linuxplatform "github.com/moebius-oss/moebius/agent/platform/linux"
 	windowsplatform "github.com/moebius-oss/moebius/agent/platform/windows"
 	"github.com/moebius-oss/moebius/agent/poller"
 	"github.com/moebius-oss/moebius/agent/renewal"
 	"github.com/moebius-oss/moebius/agent/tlsutil"
-	"github.com/moebius-oss/moebius/shared/protocol"
 	"github.com/moebius-oss/moebius/shared/version"
 )
 
@@ -138,17 +138,15 @@ func runDaemon() error {
 		}
 	}
 
-	// Start poller
+	// Start poller with executor
+	exec := executor.New(cfg.Server.URL, client, log)
 	p := poller.New(poller.Config{
 		ServerURL:    cfg.Server.URL,
 		AgentID:      agentID,
 		PollInterval: cfg.Server.PollIntervalSeconds,
 		Client:       client,
 		Log:          log,
-		JobHandler: func(job protocol.JobDispatch) {
-			// Job executor will be wired in Phase 6
-			log.Info("job received", slog.String("job_id", job.JobID), slog.String("type", job.Type))
-		},
+		JobHandler:   exec.HandleJob,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

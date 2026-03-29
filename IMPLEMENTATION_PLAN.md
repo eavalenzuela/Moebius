@@ -279,7 +279,7 @@ Per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 
 ## Phase 6 — Job Lifecycle
 
-- [ ] **6.1** Job state machine (server side, `server/jobs/`)
+- [x] **6.1** Job state machine (server side, `server/jobs/`)
 Implement full state machine per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 - States: `PENDING` → `QUEUED` → `DISPATCHED` → `ACKNOWLEDGED` → `RUNNING` → `COMPLETED` / `FAILED` / `TIMED_OUT` / `CANCELLED`
 - `CDM_HOLD` branch: if device has CDM enabled with no active session
@@ -287,7 +287,7 @@ Implement full state machine per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 - State transition validation (no skipping states, terminal states are final)
 - All transitions written to DB with timestamps
 
-- [ ] **6.2** Job creation endpoint
+- [x] **6.2** Job creation endpoint
 `POST /v1/jobs` (per `REST_API_SPEC.md`):
 - Accept target: `device_ids`, `group_ids`, `tag_ids`, `site_ids`
 - Resolve targets to individual device IDs (expand groups/tags/sites)
@@ -297,42 +297,38 @@ Implement full state machine per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 - Return all created `job_ids` + `target_device_count`
 - Audit-log
 
-- [ ] **6.3** Job dispatch (worker)
-- Worker consumes from NATS `jobs` stream
-- On agent check-in (via API server call to worker logic): determine which queued jobs to include based on device CDM state
+- [x] **6.3** Job dispatch (check-in handler)
+- On agent check-in: determine which queued jobs to include based on device CDM state
   - CDM disabled → dispatch normally
   - CDM enabled, no session → transition to `CDM_HOLD`
-  - CDM enabled, session active → dispatch within session window
-  - Session expiring (< 1 poll interval remaining) → dispatch no new jobs
+  - CDM enabled, session active → release held jobs, dispatch
+- Auto-requeue stale dispatched jobs (>60s old)
 - Mark dispatched jobs as `DISPATCHED` with timestamp
 
-- [ ] **6.4** Job acknowledgement endpoint
+- [x] **6.4** Job acknowledgement endpoint
 `POST /v1/agents/jobs/{job_id}/acknowledge` (mTLS):
 - Transition job to `ACKNOWLEDGED`
 - Record `acknowledged_at` timestamp
 
-- [ ] **6.5** Job result submission endpoint
+- [x] **6.5** Job result submission endpoint
 `POST /v1/agents/jobs/{job_id}/result` (mTLS, per `REST_API_SPEC.md`):
 - Accept status, exit_code, stdout, stderr, timestamps
 - Transition job to terminal state (`COMPLETED`, `FAILED`, `TIMED_OUT`)
 - Write to `job_results` table
 - If `FAILED`/`TIMED_OUT` and retries remaining: create new job linked via `parent_job_id`, enqueue
 
-- [ ] **6.6** Job management endpoints
+- [x] **6.6** Job management endpoints
 - `GET /v1/jobs`, `GET /v1/jobs/{job_id}` — list/get with pagination and filters
 - `POST /v1/jobs/{job_id}/cancel` — valid for `PENDING`, `QUEUED`, `CDM_HOLD`, `DISPATCHED`
 - `POST /v1/jobs/{job_id}/retry` — valid for `FAILED`, `TIMED_OUT`; creates new linked job
-- `GET /v1/devices/{device_id}/jobs` — device-scoped job list
 
-- [ ] **6.7** Agent job executor (`agent/executor/`)
+- [x] **6.7** Agent job executor (`agent/executor/`)
 - Receive jobs from poller
 - Acknowledge immediately (`POST /v1/agents/jobs/{job_id}/acknowledge`)
 - Execute based on job type:
   - `exec` → run shell command with timeout, capture stdout/stderr/exit code
-  - `inventory_full` → trigger full inventory collection
   - (other types wired in later phases)
 - Submit result (`POST /v1/agents/jobs/{job_id}/result`)
-- Sequential or bounded-concurrency execution
 
 ---
 

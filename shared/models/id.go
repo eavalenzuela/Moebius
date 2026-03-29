@@ -27,6 +27,7 @@ func NewGroupID() string           { return newID("grp") }
 func NewTagID() string             { return newID("tag") }
 func NewSiteID() string            { return newID("sit") }
 func NewJobID() string             { return newID("job") }
+func NewJobResultID() string       { return newID("jrs") }
 func NewScheduledJobID() string    { return newID("sjb") }
 func NewAuditEntryID() string      { return newID("aud") }
 func NewAlertRuleID() string       { return newID("alr") }

@@ -50,7 +50,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.Use(mtls.Handler)
 		renewHandler := NewRenewHandler(cfg.Pool, cfg.CA, cfg.Audit, cfg.Log)
 		r.Post("/renew", renewHandler.ServeHTTP)
-		// Check-in and job result endpoints will be added in later phases
+
+		checkinHandler := NewCheckinHandler(cfg.Pool, cfg.Audit, cfg.Log)
+		r.Post("/checkin", checkinHandler.ServeHTTP)
+
+		agentJobs := NewAgentJobsHandler(cfg.Pool, cfg.Audit, cfg.Log)
+		r.Post("/jobs/{job_id}/acknowledge", agentJobs.Acknowledge)
+		r.Post("/jobs/{job_id}/result", agentJobs.SubmitResult)
 	})
 
 	// API endpoints (API key / OIDC authenticated)
@@ -85,6 +91,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		tenant := NewTenantHandler(cfg.Store)
 		r.With(rbac.Require(rbac.PermTenantRead)).Get("/tenant", tenant.Get)
 		r.With(rbac.Require(rbac.PermTenantWrite)).Patch("/tenant", tenant.Update)
+
+		// Jobs
+		jobsH := NewJobsHandler(cfg.Pool, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermJobsRead)).Get("/jobs", jobsH.List)
+		r.With(rbac.Require(rbac.PermJobsCreate)).Post("/jobs", jobsH.Create)
+		r.With(rbac.Require(rbac.PermJobsRead)).Get("/jobs/{job_id}", jobsH.Get)
+		r.With(rbac.Require(rbac.PermJobsCreate)).Post("/jobs/{job_id}/cancel", jobsH.Cancel)
+		r.With(rbac.Require(rbac.PermJobsRetry)).Post("/jobs/{job_id}/retry", jobsH.Retry)
 
 		// Device revocation
 		devices := NewDevicesHandler(cfg.Store, cfg.Audit, cfg.Log)
