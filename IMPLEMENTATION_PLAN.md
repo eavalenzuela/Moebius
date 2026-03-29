@@ -432,16 +432,16 @@ Per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` and `LOCAL_UI_CLI_SPEC.md`:
 
 ## Phase 10 — Log Shipping
 
-- [ ] **10.1** Agent log shipping
+- [x] **10.1** Agent log shipping
 `POST /v1/agents/logs` (mTLS, per `REST_API_SPEC.md`):
 - Agent periodically ships log entries to server
 - Flows regardless of CDM state (not gated by CDM)
 
-- [ ] **10.2** Server log ingestion
+- [x] **10.2** Server log ingestion
 - API server receives log entries, publishes to NATS `logs.{tenant_id}.{device_id}`
 - Worker consumes and writes to a log store (PostgreSQL or dedicated log table)
 
-- [ ] **10.3** Audit log endpoint
+- [x] **10.3** Audit log endpoint
 `GET /v1/audit-log` per `REST_API_SPEC.md`:
 - Cursor pagination
 - Filters: `actor_id`, `actor_type`, `action`, `resource_type`, `resource_id`, `since`, `until`
@@ -451,20 +451,20 @@ Per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md` and `LOCAL_UI_CLI_SPEC.md`:
 
 ## Phase 11 — File Transfer
 
-- [ ] **11.1** Storage backend abstraction
+- [x] **11.1** Storage backend abstraction
 Per `FILE_TRANSFER_SPEC.md`:
 - Interface: `Store`, `Upload`, `Download`, `Delete`
 - `server` backend: local filesystem or mounted volume
 - `s3` backend: S3-compatible (AWS S3, MinIO, R2) with pre-signed URL generation
 - Backend selection per tenant config
 
-- [ ] **11.2** Signing key management
+- [x] **11.2** Signing key management
 - `POST /v1/signing-keys` — register Ed25519 public key
 - `GET /v1/signing-keys` — list
 - `DELETE /v1/signing-keys/{key_id}` — fails if referenced by files
 - Only Ed25519 supported
 
-- [ ] **11.3** Chunked file upload
+- [x] **11.3** Chunked file upload
 Per `FILE_TRANSFER_SPEC.md` upload flow:
 - `POST /v1/files` — initiate upload, get `upload_id`, chunk count
 - `PUT /v1/files/uploads/{upload_id}/chunks/{chunk_index}` — upload individual chunk with `X-Chunk-SHA256`
@@ -472,17 +472,17 @@ Per `FILE_TRANSFER_SPEC.md` upload flow:
 - `POST /v1/files/uploads/{upload_id}/complete` — assemble, verify full-file SHA-256, verify signature if provided
 - Upload sessions expire after 24h inactivity
 
-- [ ] **11.4** File management endpoints
+- [x] **11.4** File management endpoints
 - `GET /v1/files` — list file metadata (paginated, searchable)
 - `GET /v1/files/{file_id}` — file metadata
 - `DELETE /v1/files/{file_id}` — fails if referenced by pending/active transfer jobs
 
-- [ ] **11.5** File download endpoint
+- [x] **11.5** File download endpoint
 `GET /v1/files/{file_id}/download` (mTLS for agents):
 - Server backend: return short-lived download URL (5 min) + chunk metadata
 - S3 backend: return pre-signed URL (1 hour) + chunk metadata
 
-- [ ] **11.6** Agent file transfer handler
+- [x] **11.6** Agent file transfer handler
 Handle `file_transfer` job type in executor per `FILE_TRANSFER_SPEC.md` agent flow:
 - Pre-flight: check free disk space against threshold
 - Acknowledge job
@@ -494,7 +494,7 @@ Handle `file_transfer` job type in executor per `FILE_TRANSFER_SPEC.md` agent fl
 - Execute `on_complete` command if specified
 - Submit result with appropriate error codes on failure
 
-- [ ] **11.7** Agent-side storage config
+- [x] **11.7** Agent-side storage config
 - Drop directory: `/opt/agent/drop` (Linux), `C:\ProgramData\Agent\Drop` (Windows)
 - Space check: configurable threshold (default 50% of free space)
 - Overridable per-job via payload `storage` block

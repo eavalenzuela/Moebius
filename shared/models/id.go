@@ -40,6 +40,7 @@ func NewAgentVersionID() string    { return newID("avg") }
 func NewInstallerID() string       { return newID("ins") }
 func NewInventoryHWID() string     { return newID("ihw") }
 func NewInventoryPkgID() string    { return newID("ipk") }
+func NewDeviceLogID() string       { return newID("dlg") }
 
 // ValidPrefix checks if an ID starts with the expected prefix.
 func ValidPrefix(id, prefix string) bool {

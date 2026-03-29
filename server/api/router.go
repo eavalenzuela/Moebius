@@ -13,6 +13,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/health"
 	"github.com/eavalenzuela/Moebius/server/pki"
 	"github.com/eavalenzuela/Moebius/server/rbac"
+	"github.com/eavalenzuela/Moebius/server/storage"
 	"github.com/eavalenzuela/Moebius/server/store"
 )
 
@@ -25,6 +26,7 @@ type RouterConfig struct {
 	Log        *slog.Logger
 	Health     *health.Handler
 	Enrollment *auth.EnrollmentService
+	Storage    storage.Backend
 }
 
 // NewRouter creates the fully wired chi router for the API server.
@@ -57,7 +59,19 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		agentJobs := NewAgentJobsHandler(cfg.Pool, cfg.Audit, cfg.Log)
 		r.Post("/jobs/{job_id}/acknowledge", agentJobs.Acknowledge)
 		r.Post("/jobs/{job_id}/result", agentJobs.SubmitResult)
+
+		logsHandler := NewLogsHandler(cfg.Pool, cfg.Log)
+		r.Post("/logs", logsHandler.Ingest)
+
+		filesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
+		r.Get("/files/{file_id}/download", filesH.Download)
 	})
+
+	// File data serving (local backend) — no auth (URL from download endpoint)
+	{
+		localFilesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
+		r.Get("/v1/files/data/{file_id}", localFilesH.ServeFileData)
+	}
 
 	// API endpoints (API key / OIDC authenticated)
 	apiKeyAuth := auth.NewAPIKeyMiddleware(cfg.Pool, cfg.Log)
@@ -140,6 +154,26 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermSitesRead)).Get("/sites/{site_id}/devices", sites.ListDevices)
 		r.With(rbac.Require(rbac.PermSitesWrite)).Post("/sites/{site_id}/devices", sites.AddDevices)
 		r.With(rbac.Require(rbac.PermSitesWrite)).Delete("/sites/{site_id}/devices/{device_id}", sites.RemoveDevice)
+
+		// Signing keys
+		sigKeys := NewSigningKeysHandler(cfg.Pool, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermSigningKeysRead)).Get("/signing-keys", sigKeys.List)
+		r.With(rbac.Require(rbac.PermSigningKeysWrite)).Post("/signing-keys", sigKeys.Create)
+		r.With(rbac.Require(rbac.PermSigningKeysWrite)).Delete("/signing-keys/{key_id}", sigKeys.Delete)
+
+		// Files
+		filesAPI := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files", filesAPI.ListFiles)
+		r.With(rbac.Require(rbac.PermFilesWrite)).Post("/files", filesAPI.InitiateUpload)
+		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files/{file_id}", filesAPI.GetFile)
+		r.With(rbac.Require(rbac.PermFilesWrite)).Delete("/files/{file_id}", filesAPI.DeleteFile)
+		r.With(rbac.Require(rbac.PermFilesWrite)).Put("/files/uploads/{upload_id}/chunks/{chunk_index}", filesAPI.UploadChunk)
+		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files/uploads/{upload_id}", filesAPI.UploadStatus)
+		r.With(rbac.Require(rbac.PermFilesWrite)).Post("/files/uploads/{upload_id}/complete", filesAPI.CompleteUpload)
+
+		// Audit log
+		auditLogH := NewAuditLogHandler(cfg.Pool, cfg.Log)
+		r.With(rbac.Require(rbac.PermAuditLogRead)).Get("/audit-log", auditLogH.List)
 
 		// Enrollment tokens
 		enrollTokens := NewEnrollmentTokensHandler(cfg.Pool, cfg.Enrollment, cfg.Audit, cfg.Log)

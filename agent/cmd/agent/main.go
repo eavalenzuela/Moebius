@@ -17,6 +17,7 @@ import (
 	"github.com/eavalenzuela/Moebius/agent/enrollment"
 	"github.com/eavalenzuela/Moebius/agent/executor"
 	"github.com/eavalenzuela/Moebius/agent/inventory"
+	"github.com/eavalenzuela/Moebius/agent/logshipper"
 	"github.com/eavalenzuela/Moebius/agent/platform"
 	linuxplatform "github.com/eavalenzuela/Moebius/agent/platform/linux"
 	windowsplatform "github.com/eavalenzuela/Moebius/agent/platform/windows"
@@ -141,6 +142,11 @@ func runDaemon() error {
 		}
 	}
 
+	// Initialize log shipper — tee agent logs to server
+	shipper := logshipper.New(cfg.Server.URL, agentID, client)
+	innerHandler := slog.NewTextHandler(os.Stderr, nil)
+	log = slog.New(logshipper.NewHandler(shipper, innerHandler, slog.LevelInfo))
+
 	// Initialize CDM
 	cdmAudit := cdm.NewAuditLog(plat.CDMAuditLogPath())
 	cdmMgr, err := cdm.New(plat.CDMStatePath(), cdmAudit)
@@ -151,7 +157,7 @@ func runDaemon() error {
 
 	// Start poller with executor and inventory
 	inv := inventory.New(log)
-	exec := executor.New(cfg.Server.URL, client, inv, cdmMgr, log)
+	exec := executor.New(cfg.Server.URL, client, inv, cdmMgr, plat.DropDir(), log)
 	p := poller.New(poller.Config{
 		ServerURL:     cfg.Server.URL,
 		AgentID:       agentID,
@@ -164,6 +170,9 @@ func runDaemon() error {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	// Start log shipper goroutine
+	go shipper.Run(ctx)
 
 	// Feed CDM state to poller for check-in reporting
 	go func() {

@@ -25,16 +25,18 @@ type Executor struct {
 	log       *slog.Logger
 	inventory *inventory.Collector
 	cdm       *cdm.Manager
+	dropDir   string
 }
 
 // New creates an Executor.
-func New(serverURL string, client *http.Client, inv *inventory.Collector, cdmMgr *cdm.Manager, log *slog.Logger) *Executor {
+func New(serverURL string, client *http.Client, inv *inventory.Collector, cdmMgr *cdm.Manager, dropDir string, log *slog.Logger) *Executor {
 	return &Executor{
 		serverURL: strings.TrimRight(serverURL, "/"),
 		client:    client,
 		log:       log,
 		inventory: inv,
 		cdm:       cdmMgr,
+		dropDir:   dropDir,
 	}
 }
 
@@ -96,6 +98,8 @@ func (e *Executor) execute(ctx context.Context, job protocol.JobDispatch) protoc
 		return e.executeExec(ctx, job.Payload)
 	case "inventory_full":
 		return e.executeInventoryFull()
+	case "file_transfer":
+		return e.executeFileTransfer(ctx, job.Payload)
 	default:
 		return protocol.JobResultSubmission{
 			Status:  "failed",

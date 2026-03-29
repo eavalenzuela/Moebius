@@ -24,6 +24,10 @@ const (
 	PermAPIKeysRead          = "api_keys:read" //nolint:gosec // not a credential
 	PermAPIKeysWrite         = "api_keys:write"
 	PermEnrollmentTokenWrite = "enrollment_tokens:write"
+	PermFilesRead            = "files:read"
+	PermFilesWrite           = "files:write"
+	PermSigningKeysRead      = "signing_keys:read"
+	PermSigningKeysWrite     = "signing_keys:write"
 	PermAlertsRead           = "alerts:read"
 	PermAlertsWrite          = "alerts:write"
 	PermAuditLogRead         = "audit_log:read"
@@ -46,6 +50,8 @@ var AllPermissions = []string{
 	PermRolesRead, PermRolesWrite,
 	PermAPIKeysRead, PermAPIKeysWrite,
 	PermEnrollmentTokenWrite,
+	PermFilesRead, PermFilesWrite,
+	PermSigningKeysRead, PermSigningKeysWrite,
 	PermAlertsRead, PermAlertsWrite,
 	PermAuditLogRead,
 	PermTenantRead, PermTenantWrite,
@@ -68,6 +74,8 @@ var (
 		PermRolesRead, PermRolesWrite,
 		PermAPIKeysRead, PermAPIKeysWrite,
 		PermEnrollmentTokenWrite,
+		PermFilesRead, PermFilesWrite,
+		PermSigningKeysRead, PermSigningKeysWrite,
 		PermAlertsRead, PermAlertsWrite,
 		PermAuditLogRead,
 		PermTenantRead, PermTenantWrite,
@@ -83,6 +91,8 @@ var (
 		PermTagsRead, PermTagsWrite,
 		PermSitesRead, PermSitesWrite,
 		PermEnrollmentTokenWrite,
+		PermFilesRead, PermFilesWrite,
+		PermSigningKeysRead, PermSigningKeysWrite,
 		PermAlertsRead, PermAlertsWrite,
 		PermScheduledJobsRead, PermScheduledJobsWrite,
 	}

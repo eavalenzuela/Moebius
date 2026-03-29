@@ -15,8 +15,8 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed task tracking.
 - [x] **Phase 7** — Device Management
 - [x] **Phase 8** — Inventory Collection
 - [x] **Phase 9** — CDM (Customer Device Mode)
-- [ ] **Phase 10** — Log Shipping
-- [ ] **Phase 11** — File Transfer
+- [x] **Phase 10** — Log Shipping
+- [x] **Phase 11** — File Transfer
 - [ ] **Phase 12** — Package Management Jobs
 - [ ] **Phase 13** — Agent Update
 - [ ] **Phase 14** — Scheduling & Alerting

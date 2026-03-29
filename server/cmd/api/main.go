@@ -24,6 +24,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/migrate"
 	"github.com/eavalenzuela/Moebius/server/pki"
 	"github.com/eavalenzuela/Moebius/server/rbac"
+	"github.com/eavalenzuela/Moebius/server/storage"
 	"github.com/eavalenzuela/Moebius/server/store"
 	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/eavalenzuela/Moebius/shared/version"
@@ -83,6 +84,13 @@ func runServer() error {
 	enrollSvc := auth.NewEnrollmentService(st.Pool())
 	healthHandler := health.New(map[string]health.Checker{"database": st})
 
+	// File storage backend (local by default)
+	fileStorage, err := storage.NewLocalBackend(cfg.StoragePath)
+	if err != nil {
+		return fmt.Errorf("init file storage: %w", err)
+	}
+	log.Info("file storage initialized", slog.String("backend", "local"), slog.String("path", cfg.StoragePath))
+
 	// Build router
 	router := api.NewRouter(api.RouterConfig{
 		Pool:       st.Pool(),
@@ -92,6 +100,7 @@ func runServer() error {
 		Log:        log,
 		Health:     healthHandler,
 		Enrollment: enrollSvc,
+		Storage:    fileStorage,
 	})
 
 	// Start HTTP server

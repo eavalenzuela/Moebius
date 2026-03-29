@@ -47,4 +47,6 @@ func (p *Platform) CDMAuditLogPath() string {
 	return filepath.Join(p.DataDir(), "cdm-audit.log")
 }
 
+func (p *Platform) DropDir() string { return "/opt/moebius-agent/drop" }
+
 func (p *Platform) ServiceName() string { return "moebius-agent" }
