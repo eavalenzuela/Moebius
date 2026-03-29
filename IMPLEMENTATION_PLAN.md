@@ -157,43 +157,36 @@ Request/response types for agent<->server communication per `AGENT_CHECKIN_AND_C
 - Store new cert record; old cert remains valid until its natural expiry
 - Audit-log
 
-- [ ] **3.6** Device revocation
-`POST /v1/devices/{device_id}/revoke` (per `REST_API_SPEC.md`):
-- Mark certificate `revoked_at` in `agent_certificates`
-- Mark device record as `revoked`
-- Cancel all pending jobs for the device
-- Audit-log
-
 ---
 
 ## Phase 4 — API Server: Auth & RBAC
 
-- [ ] **4.1** API key authentication middleware
+- [x] **4.1** API key authentication middleware
 - `Authorization: Bearer <api_key>` header parsing
 - Hash incoming key, look up in `api_keys` table
 - Check not expired, update `last_used_at`
 - Attach user identity + role + scope to request context
 
-- [ ] **4.2** RBAC enforcement middleware (`server/rbac/`)
+- [x] **4.2** RBAC enforcement middleware (`server/rbac/`)
 - Load role permissions from `roles` table
 - Check required permission against role's permission set for every endpoint
 - Scope enforcement: filter results by API key's `scope` (group_ids, tag_ids, site_ids, device_ids)
 - Predefined roles per `FEATURE_REQUIREMENTS.md`: Super Admin, Tenant Admin, Operator, Technician, Viewer
 - Permission strings per `REST_API_SPEC.md` permission reference (e.g. `devices:read`, `jobs:create`)
 
-- [ ] **4.3** Tenant isolation middleware
+- [x] **4.3** Tenant isolation middleware
 - Extract `tenant_id` from authenticated user/API key
 - Inject into request context; all store queries must use it
 - Reject cross-tenant access attempts
 
-- [ ] **4.4** Request/response framework
+- [x] **4.4** Request/response framework
 - Router setup (chi or standard library mux)
 - Cursor-based pagination helper per `REST_API_SPEC.md` conventions (opaque cursor, default limit 50, max 500)
 - Standard error response format: `{ "error": { "code", "message", "request_id" } }`
 - `X-Request-ID` generation/echo
 - Rate limit headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
-- [ ] **4.5** Roles CRUD endpoints
+- [x] **4.5** Roles CRUD endpoints
 Per `REST_API_SPEC.md`:
 - `GET /v1/roles` — list system + tenant custom roles
 - `POST /v1/roles` — create custom role with permission list
@@ -201,26 +194,33 @@ Per `REST_API_SPEC.md`:
 - `PATCH /v1/roles/{role_id}` — system roles immutable
 - `DELETE /v1/roles/{role_id}` — fails if assigned to users/keys
 
-- [ ] **4.6** Users CRUD endpoints
+- [x] **4.6** Users CRUD endpoints
 - `GET /v1/users`, `GET /v1/users/{user_id}`
 - `POST /v1/users/invite` — send invite with role assignment
 - `PATCH /v1/users/{user_id}` — update role
 - `POST /v1/users/{user_id}/deactivate`
 
-- [ ] **4.7** API keys CRUD endpoints
+- [x] **4.7** API keys CRUD endpoints
 - `GET /v1/api-keys` — list (no key values)
 - `POST /v1/api-keys` — create, return key value once only
 - `DELETE /v1/api-keys/{key_id}` — revoke
 
-- [ ] **4.8** Tenant endpoints
+- [x] **4.8** Tenant endpoints
 - `GET /v1/tenant` — current tenant config
 - `PATCH /v1/tenant` — update name, config (poll interval, cert lifetime, SSO settings)
 
-- [ ] **4.9** OIDC/SSO integration
+- [x] **4.9** OIDC/SSO integration
 - `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` env vars
 - Token validation against OIDC provider
 - Map SSO subject to user record via `users.sso_subject`
 - Role assignable to SSO identities per `FEATURE_REQUIREMENTS.md`
+
+- [x] **4.10** Device revocation endpoint
+`POST /v1/devices/{device_id}/revoke` (per `REST_API_SPEC.md`):
+- Mark certificate `revoked_at` in `agent_certificates`
+- Mark device record as `revoked`
+- Cancel all pending jobs for the device
+- Audit-log
 
 ---
 
