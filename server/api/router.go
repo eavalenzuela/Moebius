@@ -100,9 +100,52 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermJobsCreate)).Post("/jobs/{job_id}/cancel", jobsH.Cancel)
 		r.With(rbac.Require(rbac.PermJobsRetry)).Post("/jobs/{job_id}/retry", jobsH.Retry)
 
-		// Device revocation
+		// Devices
 		devices := NewDevicesHandler(cfg.Store, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermDevicesRead)).Get("/devices", devices.List)
+		r.With(rbac.Require(rbac.PermDevicesRead)).Get("/devices/{device_id}", devices.Get)
+		r.With(rbac.Require(rbac.PermDevicesWrite)).Patch("/devices/{device_id}", devices.Update)
 		r.With(rbac.Require(rbac.PermDevicesRevoke)).Post("/devices/{device_id}/revoke", devices.Revoke)
+
+		// Device inventory
+		inv := NewInventoryHandler(cfg.Pool)
+		r.With(rbac.Require(rbac.PermInventoryRead)).Get("/devices/{device_id}/inventory", inv.GetDeviceInventory)
+
+		// Device tags
+		tags := NewTagsHandler(cfg.Store)
+		r.With(rbac.Require(rbac.PermTagsRead)).Get("/tags", tags.List)
+		r.With(rbac.Require(rbac.PermTagsWrite)).Post("/tags", tags.Create)
+		r.With(rbac.Require(rbac.PermTagsWrite)).Delete("/tags/{tag_id}", tags.Delete)
+		r.With(rbac.Require(rbac.PermTagsWrite)).Post("/devices/{device_id}/tags", tags.AddToDevice)
+		r.With(rbac.Require(rbac.PermTagsWrite)).Delete("/devices/{device_id}/tags/{tag_id}", tags.RemoveFromDevice)
+
+		// Groups
+		groups := NewGroupsHandler(cfg.Store)
+		r.With(rbac.Require(rbac.PermGroupsRead)).Get("/groups", groups.List)
+		r.With(rbac.Require(rbac.PermGroupsWrite)).Post("/groups", groups.Create)
+		r.With(rbac.Require(rbac.PermGroupsRead)).Get("/groups/{group_id}", groups.Get)
+		r.With(rbac.Require(rbac.PermGroupsWrite)).Patch("/groups/{group_id}", groups.Update)
+		r.With(rbac.Require(rbac.PermGroupsWrite)).Delete("/groups/{group_id}", groups.Delete)
+		r.With(rbac.Require(rbac.PermGroupsRead)).Get("/groups/{group_id}/devices", groups.ListDevices)
+		r.With(rbac.Require(rbac.PermGroupsWrite)).Post("/groups/{group_id}/devices", groups.AddDevices)
+		r.With(rbac.Require(rbac.PermGroupsWrite)).Delete("/groups/{group_id}/devices/{device_id}", groups.RemoveDevice)
+
+		// Sites
+		sites := NewSitesHandler(cfg.Store)
+		r.With(rbac.Require(rbac.PermSitesRead)).Get("/sites", sites.List)
+		r.With(rbac.Require(rbac.PermSitesWrite)).Post("/sites", sites.Create)
+		r.With(rbac.Require(rbac.PermSitesRead)).Get("/sites/{site_id}", sites.Get)
+		r.With(rbac.Require(rbac.PermSitesWrite)).Patch("/sites/{site_id}", sites.Update)
+		r.With(rbac.Require(rbac.PermSitesWrite)).Delete("/sites/{site_id}", sites.Delete)
+		r.With(rbac.Require(rbac.PermSitesRead)).Get("/sites/{site_id}/devices", sites.ListDevices)
+		r.With(rbac.Require(rbac.PermSitesWrite)).Post("/sites/{site_id}/devices", sites.AddDevices)
+		r.With(rbac.Require(rbac.PermSitesWrite)).Delete("/sites/{site_id}/devices/{device_id}", sites.RemoveDevice)
+
+		// Enrollment tokens
+		enrollTokens := NewEnrollmentTokensHandler(cfg.Pool, cfg.Enrollment, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermEnrollmentTokenWrite)).Get("/enrollment-tokens", enrollTokens.List)
+		r.With(rbac.Require(rbac.PermEnrollmentTokenWrite)).Post("/enrollment-tokens", enrollTokens.Create)
+		r.With(rbac.Require(rbac.PermEnrollmentTokenWrite)).Delete("/enrollment-tokens/{token_id}", enrollTokens.Delete)
 	})
 
 	return r

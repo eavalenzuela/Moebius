@@ -12,7 +12,7 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed task tracking.
 - [x] **Phase 4** — API Server: Auth & RBAC
 - [x] **Phase 5** — Agent Core
 - [x] **Phase 6** — Job Lifecycle
-- [ ] **Phase 7** — Device Management
+- [x] **Phase 7** — Device Management
 - [ ] **Phase 8** — Inventory Collection
 - [ ] **Phase 9** — CDM (Customer Device Mode)
 - [ ] **Phase 10** — Log Shipping

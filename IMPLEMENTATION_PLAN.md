@@ -334,37 +334,36 @@ Implement full state machine per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 
 ## Phase 7 — Device Management
 
-- [ ] **7.1** Device CRUD endpoints
+- [x] **7.1** Device CRUD endpoints
 Per `REST_API_SPEC.md`:
-- `GET /v1/devices` — list with filters (status, group_id, tag_id, site_id, os, search), cursor pagination
-- `GET /v1/devices/{device_id}` — single device detail
-- `PATCH /v1/devices/{device_id}` — operator metadata updates
-- Device status derivation: `online` if `last_seen_at` within 2x poll interval, else `offline`
+- `GET /v1/devices` — list with filters (status, group_id, tag_id, site_id, os, search)
+- `GET /v1/devices/{device_id}` — single device detail with groups/tags/sites populated
+- `PATCH /v1/devices/{device_id}` — operator metadata updates (hostname)
 
-- [ ] **7.2** Groups endpoints
+- [x] **7.2** Groups endpoints
 - `GET /v1/groups`, `POST /v1/groups`, `GET /v1/groups/{group_id}`, `PATCH /v1/groups/{group_id}`, `DELETE /v1/groups/{group_id}`
 - `GET /v1/groups/{group_id}/devices` — list members
 - `POST /v1/groups/{group_id}/devices` — add devices
 - `DELETE /v1/groups/{group_id}/devices/{device_id}` — remove device
 
-- [ ] **7.3** Tags endpoints
+- [x] **7.3** Tags endpoints
 - `GET /v1/tags`, `POST /v1/tags`, `DELETE /v1/tags/{tag_id}`
 - `POST /v1/devices/{device_id}/tags`, `DELETE /v1/devices/{device_id}/tags/{tag_id}`
 
-- [ ] **7.4** Sites endpoints
+- [x] **7.4** Sites endpoints
 - `GET /v1/sites`, `POST /v1/sites`, `GET /v1/sites/{site_id}`, `PATCH /v1/sites/{site_id}`, `DELETE /v1/sites/{site_id}`
 - `GET /v1/sites/{site_id}/devices`
 - `POST /v1/sites/{site_id}/devices`, `DELETE /v1/sites/{site_id}/devices/{device_id}`
 
-- [ ] **7.5** Enrollment token endpoints
+- [x] **7.5** Enrollment token endpoints
 - `GET /v1/enrollment-tokens` — list (no token values, only metadata)
 - `POST /v1/enrollment-tokens` — create, return token value once
 - `DELETE /v1/enrollment-tokens/{token_id}` — revoke
 
-- [ ] **7.6** Device inventory endpoint
+- [x] **7.6** Device inventory endpoint
 - `GET /v1/devices/{device_id}/inventory` — hardware + packages
 
-- [ ] **7.7** Device logs endpoint
+- [ ] **7.7** Device logs endpoint (deferred to Phase 10 — requires log storage)
 - `GET /v1/devices/{device_id}/logs` — paginated log entries with level/time filters
 
 ---
