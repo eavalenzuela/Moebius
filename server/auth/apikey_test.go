@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"testing"
+
+	"github.com/moebius-oss/moebius/shared/models"
 )
 
 func TestExtractBearerToken(t *testing.T) {
@@ -41,5 +44,51 @@ func TestHashAPIKey_DifferentInputs(t *testing.T) {
 	h2 := hashAPIKey("sk_key_b")
 	if h1 == h2 {
 		t.Error("different inputs should produce different hashes")
+	}
+}
+
+func TestUserIDFromContext(t *testing.T) {
+	ctx := context.WithValue(context.Background(), ContextKeyUserID, "usr_abc")
+	if got := UserIDFromContext(ctx); got != "usr_abc" {
+		t.Errorf("UserIDFromContext = %q, want %q", got, "usr_abc")
+	}
+	if got := UserIDFromContext(context.Background()); got != "" {
+		t.Errorf("UserIDFromContext(empty) = %q, want empty", got)
+	}
+}
+
+func TestPermissionsFromContext(t *testing.T) {
+	perms := []string{"devices:read", "jobs:create"}
+	ctx := context.WithValue(context.Background(), ContextKeyPermissions, perms)
+	got := PermissionsFromContext(ctx)
+	if len(got) != 2 || got[0] != "devices:read" || got[1] != "jobs:create" {
+		t.Errorf("PermissionsFromContext = %v, want %v", got, perms)
+	}
+	if got := PermissionsFromContext(context.Background()); got != nil {
+		t.Errorf("PermissionsFromContext(empty) = %v, want nil", got)
+	}
+}
+
+func TestScopeFromContext(t *testing.T) {
+	scope := &models.APIScope{
+		DeviceIDs: []string{"dev_1"},
+	}
+	ctx := context.WithValue(context.Background(), ContextKeyScope, scope)
+	got := ScopeFromContext(ctx)
+	if got == nil || len(got.DeviceIDs) != 1 {
+		t.Errorf("ScopeFromContext = %v, want scope with 1 device", got)
+	}
+	if got := ScopeFromContext(context.Background()); got != nil {
+		t.Errorf("ScopeFromContext(empty) = %v, want nil", got)
+	}
+}
+
+func TestIsAdminFromContext(t *testing.T) {
+	ctx := context.WithValue(context.Background(), ContextKeyIsAdmin, true)
+	if got := IsAdminFromContext(ctx); !got {
+		t.Error("IsAdminFromContext = false, want true")
+	}
+	if got := IsAdminFromContext(context.Background()); got {
+		t.Error("IsAdminFromContext(empty) = true, want false")
 	}
 }
