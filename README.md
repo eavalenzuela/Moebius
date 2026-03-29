@@ -10,7 +10,7 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed task tracking.
 - [x] **Phase 2** — Server Core
 - [x] **Phase 3** — PKI & Agent Enrollment
 - [x] **Phase 4** — API Server: Auth & RBAC
-- [ ] **Phase 5** — Agent Core
+- [x] **Phase 5** — Agent Core
 - [ ] **Phase 6** — Job Lifecycle
 - [ ] **Phase 7** — Device Management
 - [ ] **Phase 8** — Inventory Collection

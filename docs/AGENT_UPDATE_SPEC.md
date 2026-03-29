@@ -175,8 +175,8 @@ The agent downloads the new binary in chunks using Range requests, identical to 
 
 | Platform | Staging Path |
 |---|---|
-| Linux | `/usr/local/bin/agent.new` |
-| Windows | `C:\Program Files\Agent\agent.new.exe` |
+| Linux | `/usr/local/bin/moebius-agent.new` |
+| Windows | `C:\Program Files\MoebiusAgent\moebius-agent.new.exe` |
 
 ### 3. Verification
 
@@ -191,15 +191,15 @@ Both checks must pass. A binary that passes checksum but fails signature (or vic
 
 ```
 Current state:
-  /usr/local/bin/agent          ← running binary (v1.4.2)
-  /usr/local/bin/agent.new      ← verified new binary (v1.5.0)
-  /usr/local/bin/agent.previous ← previous binary (v1.3.1, if exists)
+  /usr/local/bin/moebius-agent          ← running binary (v1.4.2)
+  /usr/local/bin/moebius-agent.new      ← verified new binary (v1.5.0)
+  /usr/local/bin/moebius-agent.previous ← previous binary (v1.3.1, if exists)
 ```
 
 The agent:
-1. Copies the current binary to `agent.previous` (overwriting any older `.previous`)
-2. Replaces `agent` with `agent.new` atomically (via `rename` / `MoveFileEx`)
-3. Deletes `agent.new`
+1. Copies the current binary to `moebius-agent.previous` (overwriting any older `.previous`)
+2. Replaces `moebius-agent` with `moebius-agent.new` atomically (via `rename` / `MoveFileEx`)
+3. Deletes `moebius-agent.new`
 
 The rename is atomic on both Linux and Windows — there is no window where the binary path is absent.
 
@@ -232,8 +232,8 @@ After restart, the new agent binary:
 
 | Platform | Path |
 |---|---|
-| Linux | `/var/lib/agent/pending_update.json` |
-| Windows | `C:\ProgramData\Agent\pending_update.json` |
+| Linux | `/var/lib/moebius-agent/pending_update.json` |
+| Windows | `C:\ProgramData\MoebiusAgent\pending_update.json` |
 
 ```json
 {
@@ -257,7 +257,7 @@ Triggered when the new binary fails to start or fails post-restart version verif
 The agent (running the old binary, restored by the service manager's restart-on-failure policy, or explicitly by the rollback logic):
 
 1. Reads `pending_update.json` to identify the failed update
-2. Renames `agent.previous` back to `agent` atomically
+2. Renames `moebius-agent.previous` back to `moebius-agent` atomically
 3. Restarts into the restored binary
 4. On next check-in, reports the rollback to the server:
 ```json
@@ -286,12 +286,12 @@ POST /v1/devices/{device_id}/rollback
 ```
 
 This enqueues a special `agent_rollback` job. The agent:
-1. Verifies `agent.previous` exists and its version meets `min_rollback_version`
-2. Swaps `agent` and `agent.previous` atomically
+1. Verifies `moebius-agent.previous` exists and its version meets `min_rollback_version`
+2. Swaps `moebius-agent` and `moebius-agent.previous` atomically
 3. Restarts into the previous binary
 4. Reports success on next check-in
 
-If no `agent.previous` exists or the previous version is below `min_rollback_version`, the rollback job fails with an appropriate error and the operator is notified.
+If no `moebius-agent.previous` exists or the previous version is below `min_rollback_version`, the rollback job fails with an appropriate error and the operator is notified.
 
 **Rollback is a one-generation operation** — only the immediately previous binary is retained. Rolling back twice in succession is not supported; the operator must push a specific version via a manual update job instead.
 
@@ -386,7 +386,7 @@ agent_update_policies (
 
 - **Signature is mandatory for agent updates** — unlike general file transfers where signature is optional, `agent_update` jobs always require Ed25519 signature verification. A binary that fails signature verification is deleted and never executed.
 - **Atomic binary swap** — use of `rename`/`MoveFileEx` ensures there is no window where the agent binary is absent or partially written
-- **Previous binary retention** — `agent.previous` is retained until the next successful update, providing a one-generation rollback target without requiring a network download
+- **Previous binary retention** — `moebius-agent.previous` is retained until the next successful update, providing a one-generation rollback target without requiring a network download
 - **Startup verification deadline** — prevents a failed new binary from blocking the agent indefinitely; the old binary is restored if the deadline passes
 - **Gradual rollout with automatic pause** — limits blast radius of a bad release to the first batch before operator intervention
 - **Yank mechanism** — allows rapid suppression of a bad version across all tenants before it spreads further

@@ -160,12 +160,12 @@ Both paths are fully supported.
 
 1. Detects init system (systemd required; exits with error if not found)
 2. Checks for existing agent installation — upgrades in place if found
-3. Creates dedicated system user and group: `agent:agent`
-4. Installs binary to `/usr/local/bin/agent` (mode `0755`, owned `root:root`)
+3. Creates dedicated system user and group: `moebius-agent:moebius-agent`
+4. Installs binary to `/usr/local/bin/moebius-agent` (mode `0755`, owned `root:root`)
 5. Creates directory structure (see below)
-6. Writes enrollment token to `/etc/agent/enrollment.token` (mode `0600`, owned `root:agent`)
-7. Writes server URL and CA certificate to `/etc/agent/config.toml`
-8. Installs systemd unit file to `/etc/systemd/system/agent.service`
+6. Writes enrollment token to `/etc/moebius-agent/enrollment.token` (mode `0600`, owned `root:moebius-agent`)
+7. Writes server URL and CA certificate to `/etc/moebius-agent/config.toml`
+8. Installs systemd unit file to `/etc/systemd/system/moebius-agent.service`
 9. Runs `systemctl daemon-reload`
 10. Enables and starts the agent service
 11. Waits up to 30 seconds for first successful check-in
@@ -174,36 +174,36 @@ Both paths are fully supported.
 ### Directory Structure (Linux)
 
 ```
-/usr/local/bin/agent              ← agent binary
-/usr/local/bin/agent.previous     ← previous binary (post-update)
-/etc/agent/
-  config.toml                     ← agent configuration (root:agent, 0640)
-  enrollment.token                ← enrollment token, consumed on first run (root:agent, 0600)
-  ca.crt                          ← server CA certificate (root:agent, 0644)
-  client.crt                      ← agent client certificate (root:agent, 0640)
-  client.key                      ← agent private key (root:agent, 0600)
-/var/lib/agent/
-  pending_update.json             ← update verification file (root:agent, 0640)
-  drop/                           ← file transfer drop directory (root:agent, 0750)
-/var/log/agent/
-  agent.log                       ← agent log file (root:agent, 0640)
-/run/agent/
-  agent.sock                      ← Unix socket for CLI (root:agent, 0660)
+/usr/local/bin/moebius-agent              ← agent binary
+/usr/local/bin/moebius-agent.previous     ← previous binary (post-update)
+/etc/moebius-agent/
+  config.toml                     ← agent configuration (root:moebius-agent, 0640)
+  enrollment.token                ← enrollment token, consumed on first run (root:moebius-agent, 0600)
+  ca.crt                          ← server CA certificate (root:moebius-agent, 0644)
+  client.crt                      ← agent client certificate (root:moebius-agent, 0640)
+  client.key                      ← agent private key (root:moebius-agent, 0600)
+/var/lib/moebius-agent/
+  pending_update.json             ← update verification file (root:moebius-agent, 0640)
+  drop/                           ← file transfer drop directory (root:moebius-agent, 0750)
+/var/log/moebius-agent/
+  moebius-agent.log               ← agent log file (root:moebius-agent, 0640)
+/run/moebius-agent/
+  moebius-agent.sock              ← Unix socket for CLI (root:moebius-agent, 0660)
 ```
 
 ### systemd Unit File
 
 ```ini
 [Unit]
-Description=Device Management Agent
+Description=Moebius Device Management Agent
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=notify
-User=agent
-Group=agent
-ExecStart=/usr/local/bin/agent run
+User=moebius-agent
+Group=moebius-agent
+ExecStart=/usr/local/bin/moebius-agent run
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=10s
@@ -213,7 +213,7 @@ TimeoutStartSec=30s
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/agent /var/log/agent /run/agent /etc/agent
+ReadWritePaths=/var/lib/moebius-agent /var/log/moebius-agent /run/moebius-agent /etc/moebius-agent
 PrivateTmp=yes
 PrivateDevices=yes
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
@@ -222,9 +222,9 @@ CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 WantedBy=multi-user.target
 ```
 
-Note: Package management operations (apt, dnf, etc.) require elevated privilege. The agent drops to the `agent` user for most operations but uses a minimal setuid helper binary for package manager invocations. This is preferable to running the entire agent as root.
+Note: Package management operations (apt, dnf, etc.) require elevated privilege. The agent drops to the `moebius-agent` user for most operations but uses a minimal setuid helper binary for package manager invocations. This is preferable to running the entire agent as root.
 
-### Linux Configuration File (`/etc/agent/config.toml`)
+### Linux Configuration File (`/etc/moebius-agent/config.toml`)
 
 ```toml
 [server]
@@ -232,7 +232,7 @@ url = "https://manage.example.com"
 poll_interval_seconds = 30
 
 [storage]
-drop_directory = "/var/lib/agent/drop"
+drop_directory = "/var/lib/moebius-agent/drop"
 space_check_enabled = true
 space_check_threshold = 0.50
 
@@ -242,7 +242,7 @@ port = 57000
 
 [logging]
 level = "info"
-file = "/var/log/agent/agent.log"
+file = "/var/log/moebius-agent/moebius-agent.log"
 
 [cdm]
 enabled = false  # set to true to enable Customer Device Mode at install time
@@ -255,13 +255,13 @@ enabled = false  # set to true to enable Customer Device Mode at install time
 ### MSI Installer Behaviour
 
 1. Checks for existing agent installation — upgrades in place if found
-2. Creates local service account: `NT SERVICE\Agent`
-3. Installs binary to `C:\Program Files\Agent\agent.exe`
+2. Creates local service account: `NT SERVICE\MoebiusAgent`
+3. Installs binary to `C:\Program Files\MoebiusAgent\moebius-agent.exe`
 4. Creates directory structure (see below)
-5. Writes enrollment token to `C:\ProgramData\Agent\enrollment.token` (ACL: SYSTEM + Administrators only)
-6. Writes server URL and CA certificate to `C:\ProgramData\Agent\config.toml`
+5. Writes enrollment token to `C:\ProgramData\MoebiusAgent\enrollment.token` (ACL: SYSTEM + Administrators only)
+6. Writes server URL and CA certificate to `C:\ProgramData\MoebiusAgent\config.toml`
 7. Installs CA certificate into `Local Machine\Root` certificate store
-8. Registers Windows Service (`agent`) with automatic start
+8. Registers Windows Service (`MoebiusAgent`) with automatic start
 9. Starts the service
 10. Waits up to 30 seconds for first successful check-in
 11. Reports success or failure via MSI installer UI or exit code
@@ -280,11 +280,11 @@ All flags can also be set interactively via the MSI UI for manual installations.
 ### Directory Structure (Windows)
 
 ```
-C:\Program Files\Agent\
-  agent.exe                       ← agent binary (SYSTEM + Administrators: RX)
-  agent.previous.exe              ← previous binary (post-update)
+C:\Program Files\MoebiusAgent\
+  moebius-agent.exe               ← agent binary (SYSTEM + Administrators: RX)
+  moebius-agent.previous.exe      ← previous binary (post-update)
 
-C:\ProgramData\Agent\
+C:\ProgramData\MoebiusAgent\
   config.toml                     ← agent configuration (SYSTEM + Administrators: RW)
   enrollment.token                ← enrollment token, consumed on first run (SYSTEM only: RW)
   ca.crt                          ← server CA certificate
@@ -293,18 +293,18 @@ C:\ProgramData\Agent\
   pending_update.json             ← update verification file
   drop\                           ← file transfer drop directory
 
-\\.\pipe\agent                    ← named pipe for CLI (SYSTEM + Administrators)
+\\.\pipe\moebius-agent            ← named pipe for CLI (SYSTEM + Administrators)
 ```
 
 ### Windows Service Configuration
 
-- Service name: `Agent`
-- Display name: `Device Management Agent`
+- Service name: `MoebiusAgent`
+- Display name: `Moebius Device Management Agent`
 - Start type: Automatic
 - Recovery actions: Restart on failure (1st, 2nd, subsequent) with 10s delay
-- Runs as: `NT SERVICE\Agent` (minimal privilege service account)
+- Runs as: `NT SERVICE\MoebiusAgent` (minimal privilege service account)
 
-### Windows Configuration File (`C:\ProgramData\Agent\config.toml`)
+### Windows Configuration File (`C:\ProgramData\MoebiusAgent\config.toml`)
 
 ```toml
 [server]
@@ -312,7 +312,7 @@ url = "https://manage.example.com"
 poll_interval_seconds = 30
 
 [storage]
-drop_directory = "C:\\ProgramData\\Agent\\drop"
+drop_directory = "C:\\ProgramData\\MoebiusAgent\\drop"
 space_check_enabled = true
 space_check_threshold = 0.50
 
@@ -372,15 +372,15 @@ sudo /usr/local/bin/agent uninstall --purge
 **Soft uninstall:**
 1. Stops and disables the systemd service
 2. Removes systemd unit file; runs `systemctl daemon-reload`
-3. Removes agent binary (`/usr/local/bin/agent`, `agent.previous`)
+3. Removes agent binary (`/usr/local/bin/moebius-agent`, `moebius-agent.previous`)
 4. Removes Unix socket
-5. Removes `agent` system user and group
-6. Retains: `/etc/agent/`, `/var/lib/agent/`, `/var/log/agent/`
+5. Removes `moebius-agent` system user and group
+6. Retains: `/etc/moebius-agent/`, `/var/lib/moebius-agent/`, `/var/log/moebius-agent/`
 
 **Purge (adds to soft uninstall):**
-1. Removes `/etc/agent/` (including certs and config)
-2. Removes `/var/lib/agent/` (including drop directory and its contents)
-3. Removes `/var/log/agent/`
+1. Removes `/etc/moebius-agent/` (including certs and config)
+2. Removes `/var/lib/moebius-agent/` (including drop directory and its contents)
+3. Removes `/var/log/moebius-agent/`
 
 ### Windows
 
@@ -396,10 +396,10 @@ msiexec /x agent-windows-amd64-1.5.0.msi /quiet PURGE=1
 1. Stops and removes Windows Service
 2. Removes agent binary from `Program Files`
 3. Removes named pipe
-4. Retains: `C:\ProgramData\Agent\`
+4. Retains: `C:\ProgramData\MoebiusAgent\`
 
 **Purge (adds to soft uninstall):**
-1. Removes `C:\ProgramData\Agent\` entirely
+1. Removes `C:\ProgramData\MoebiusAgent\` entirely
 2. Removes CA certificate from `Local Machine\Root` certificate store
 
 ### Server-Side on Uninstall

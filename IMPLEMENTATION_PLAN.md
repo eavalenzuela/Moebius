@@ -226,16 +226,16 @@ Per `REST_API_SPEC.md`:
 
 ## Phase 5 — Agent Core
 
-- [ ] **5.1** Agent binary entrypoint
+- [x] **5.1** Agent binary entrypoint
 - `agent/cmd/agent/main.go` — subcommand dispatch:
   - `agent run` — daemon mode (called by service manager)
   - `agent status`, `agent version` — local CLI commands
   - `agent cdm ...` — CDM management
   - `agent install`, `agent uninstall` — installer operations
   - `agent verify` — signature verification
-- Config loading from TOML file per `INSTALLER_PACKAGING_SPEC.md` (`/etc/agent/config.toml` on Linux, `C:\ProgramData\Agent\config.toml` on Windows)
+- Config loading from TOML file per `INSTALLER_PACKAGING_SPEC.md` (`/etc/moebius-agent/config.toml` on Linux, `C:\ProgramData\MoebiusAgent\config.toml` on Windows)
 
-- [ ] **5.2** Platform abstraction layer (`agent/platform/`)
+- [x] **5.2** Platform abstraction layer (`agent/platform/`)
 - Interface for OS-specific operations:
   - Service management (restart self)
   - Key storage paths
@@ -246,13 +246,13 @@ Per `REST_API_SPEC.md`:
 - `agent/platform/linux/` — systemd, PAM auth, Unix socket
 - `agent/platform/windows/` — SCM, LogonUser, named pipe
 
-- [ ] **5.3** TLS client configuration
+- [x] **5.3** TLS client configuration
 - Load client cert + key from disk
 - Load server CA from disk (received at enrollment)
 - Configure `tls.Config` for mTLS on all server requests
 - Hot-swap certificate on renewal without restarting the poller
 
-- [ ] **5.4** Enrollment flow (agent side)
+- [x] **5.4** Enrollment flow (agent side)
 Per `AGENT_AUTH_SPEC.md`:
 - Generate ECDSA keypair locally (private key never transmitted)
 - Build CSR with hostname, OS, arch metadata
@@ -261,13 +261,13 @@ Per `AGENT_AUTH_SPEC.md`:
 - Consume and delete enrollment token file
 - On success, begin check-in loop
 
-- [ ] **5.5** Certificate renewal (agent side)
+- [x] **5.5** Certificate renewal (agent side)
 - On each check-in, check if cert expiry is within 30 days
 - If so, generate new keypair + CSR, `POST /v1/agents/renew`
 - Swap to new cert on success
 - If renewal fails repeatedly and cert expires, fall back to re-enrollment per `AGENT_AUTH_SPEC.md` re-enrollment flow
 
-- [ ] **5.6** Check-in loop (`agent/poller/`)
+- [x] **5.6** Check-in loop (`agent/poller/`)
 Per `AGENT_CHECKIN_AND_CORE_DESIGN_SPEC.md`:
 - Poll every `poll_interval_seconds` (default 30s, server-adjustable via check-in response `config` block)
 - Build check-in request: `agent_id`, `timestamp`, monotonic `sequence`, `status` (uptime, CDM state, agent version), `inventory_delta`
@@ -672,7 +672,7 @@ Per `INSTALLER_PACKAGING_SPEC.md`:
 
 - [ ] **16.2** Linux uninstall
 - `agent uninstall` — soft: stop service, remove binary + unit file, retain config/certs
-- `agent uninstall --purge` — also remove `/etc/agent/`, `/var/lib/agent/`, `/var/log/agent/`
+- `agent uninstall --purge` — also remove `/etc/moebius-agent/`, `/var/lib/moebius-agent/`, `/var/log/moebius-agent/`
 
 - [ ] **16.3** Windows MSI installer (WiX v4)
 Per `INSTALLER_PACKAGING_SPEC.md`:

@@ -19,8 +19,8 @@ Both interfaces share the same authentication mechanism — OS user account cred
 
 | Platform | Path |
 |---|---|
-| Linux | `/run/agent/agent.sock` |
-| Windows | `\\.\pipe\agent` |
+| Linux | `/run/moebius-agent/moebius-agent.sock` |
+| Windows | `\\.\pipe\moebius-agent` |
 
 - Socket/pipe is created by the agent on startup with restrictive permissions
 - Linux: socket owned by `root`, mode `0660`, group `agent-users` (or equivalent)
