@@ -138,3 +138,65 @@ func TestAllStatuses_Count(t *testing.T) {
 		t.Errorf("expected 10 statuses, got %d", len(statuses))
 	}
 }
+
+// P2: Verify CancellableStatuses are actually cancellable via ValidateTransition.
+func TestCancellableStatuses_ConsistentWithTransitions(t *testing.T) {
+	for _, s := range CancellableStatuses() {
+		if err := ValidateTransition(s, models.JobStatusCancelled); err != nil {
+			t.Errorf("CancellableStatuses includes %q but ValidateTransition rejects %s→cancelled: %v", s, s, err)
+		}
+	}
+}
+
+// P2: Verify non-cancellable statuses are NOT in the transition map for cancelled.
+func TestNonCancellableStatuses_RejectCancelled(t *testing.T) {
+	cancellable := make(map[string]bool)
+	for _, s := range CancellableStatuses() {
+		cancellable[s] = true
+	}
+	for _, s := range AllStatuses() {
+		if cancellable[s] {
+			continue
+		}
+		if err := ValidateTransition(s, models.JobStatusCancelled); err == nil {
+			t.Errorf("status %q is not in CancellableStatuses but ValidateTransition allows %s→cancelled", s, s)
+		}
+	}
+}
+
+// P2: ShouldRetry edge cases.
+func TestShouldRetry_ZeroMaxRetries(t *testing.T) {
+	// Even with zero retries allowed, retryCount 0 < maxRetries 0 is false
+	if ShouldRetry(models.JobStatusFailed, 0, 0) {
+		t.Error("ShouldRetry(failed, 0, 0) should be false")
+	}
+}
+
+func TestShouldRetry_BoundaryRetryCount(t *testing.T) {
+	// retryCount = maxRetries - 1 should allow one more retry
+	if !ShouldRetry(models.JobStatusFailed, 2, 3) {
+		t.Error("ShouldRetry(failed, 2, 3) should be true")
+	}
+	// retryCount = maxRetries should not allow retry
+	if ShouldRetry(models.JobStatusFailed, 3, 3) {
+		t.Error("ShouldRetry(failed, 3, 3) should be false")
+	}
+}
+
+func TestShouldRetry_AllNonRetryableStatuses(t *testing.T) {
+	nonRetryable := []string{
+		models.JobStatusPending,
+		models.JobStatusQueued,
+		models.JobStatusCDMHold,
+		models.JobStatusDispatched,
+		models.JobStatusAcknowledged,
+		models.JobStatusRunning,
+		models.JobStatusCompleted,
+		models.JobStatusCancelled,
+	}
+	for _, s := range nonRetryable {
+		if ShouldRetry(s, 0, 10) {
+			t.Errorf("ShouldRetry(%s, 0, 10) should be false", s)
+		}
+	}
+}

@@ -103,3 +103,26 @@ func TestExecuteExec_StderrCapture(t *testing.T) {
 		t.Error("expected stderr output")
 	}
 }
+
+func TestExecuteInventoryFull_NilCollector(t *testing.T) {
+	e := &Executor{inventory: nil}
+	result := e.executeInventoryFull()
+	if result.Status != "failed" {
+		t.Fatalf("expected failed, got %s", result.Status)
+	}
+	if result.Message != "inventory collector not configured" {
+		t.Errorf("unexpected message: %s", result.Message)
+	}
+}
+
+func TestExecute_InventoryFullType(t *testing.T) {
+	// With nil inventory, the inventory_full path should return failed
+	e := &Executor{}
+	result := e.execute(context.Background(), protocol.JobDispatch{
+		JobID: "test",
+		Type:  "inventory_full",
+	})
+	if result.Status != "failed" {
+		t.Fatalf("expected failed for inventory_full with nil collector, got %s", result.Status)
+	}
+}
