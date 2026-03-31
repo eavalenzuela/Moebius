@@ -503,13 +503,13 @@ Handle `file_transfer` job type in executor per `FILE_TRANSFER_SPEC.md` agent fl
 
 ## Phase 12 — Package Management Jobs
 
-- [ ] **12.1** Package manager abstraction (`agent/platform/`)
+- [x] **12.1** Package manager abstraction (`agent/platform/`)
 - Interface: `Install(name, version)`, `Remove(name)`, `Update(name, version)`
 - Linux: `apt-get` (Debian/Ubuntu), `dnf` (RHEL/Fedora) — detect at runtime
 - Windows: `msiexec`, `winget`, or Chocolatey — detect at runtime
 - Runs via minimal setuid helper binary (not as root agent process per `INSTALLER_PACKAGING_SPEC.md`)
 
-- [ ] **12.2** Package job handlers in executor
+- [x] **12.2** Package job handlers in executor
 - `package_install` — install package via native manager, capture output
 - `package_remove` — remove package
 - `package_update` — update package to specified or latest version

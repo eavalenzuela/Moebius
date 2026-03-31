@@ -15,6 +15,7 @@ import (
 
 	"github.com/eavalenzuela/Moebius/agent/cdm"
 	"github.com/eavalenzuela/Moebius/agent/inventory"
+	"github.com/eavalenzuela/Moebius/agent/platform"
 	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
@@ -26,6 +27,7 @@ type Executor struct {
 	inventory *inventory.Collector
 	cdm       *cdm.Manager
 	dropDir   string
+	pkgMgr    platform.PackageManager // injectable for testing; nil uses platform default
 }
 
 // New creates an Executor.
@@ -100,6 +102,12 @@ func (e *Executor) execute(ctx context.Context, job protocol.JobDispatch) protoc
 		return e.executeInventoryFull()
 	case "file_transfer":
 		return e.executeFileTransfer(ctx, job.Payload)
+	case "package_install":
+		return e.executePackageInstall(job.Payload)
+	case "package_remove":
+		return e.executePackageRemove(job.Payload)
+	case "package_update":
+		return e.executePackageUpdate(job.Payload)
 	default:
 		return protocol.JobResultSubmission{
 			Status:  "failed",

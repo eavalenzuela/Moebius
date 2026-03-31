@@ -15,7 +15,7 @@ DIST = dist
 # ─── Build ──────────────────────────────────────────────
 
 .PHONY: build
-build: build-api build-worker build-scheduler build-agent ## Build all binaries (native)
+build: build-api build-worker build-scheduler build-agent build-pkg-helper ## Build all binaries (native)
 
 .PHONY: build-api
 build-api: ## Build API server
@@ -33,10 +33,14 @@ build-scheduler: ## Build scheduler
 build-agent: ## Build agent (native)
 	go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-agent ./agent/cmd/agent
 
+.PHONY: build-pkg-helper
+build-pkg-helper: ## Build setuid package helper (Linux only)
+	GOOS=linux go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-pkg-helper ./agent/cmd/pkg-helper
+
 # ─── Cross-compile agent ────────────────────────────────
 
 .PHONY: build-agent-all
-build-agent-all: build-agent-linux-amd64 build-agent-linux-arm64 build-agent-windows-amd64 ## Cross-compile agent for all platforms
+build-agent-all: build-agent-linux-amd64 build-agent-linux-arm64 build-agent-windows-amd64 build-pkg-helper-linux-amd64 build-pkg-helper-linux-arm64 ## Cross-compile agent for all platforms
 
 .PHONY: build-agent-linux-amd64
 build-agent-linux-amd64:
@@ -49,6 +53,14 @@ build-agent-linux-arm64:
 .PHONY: build-agent-windows-amd64
 build-agent-windows-amd64:
 	GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-agent-windows-amd64.exe ./agent/cmd/agent
+
+.PHONY: build-pkg-helper-linux-amd64
+build-pkg-helper-linux-amd64:
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-pkg-helper-linux-amd64 ./agent/cmd/pkg-helper
+
+.PHONY: build-pkg-helper-linux-arm64
+build-pkg-helper-linux-arm64:
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-pkg-helper-linux-arm64 ./agent/cmd/pkg-helper
 
 # ─── Cross-compile server ───────────────────────────────
 
