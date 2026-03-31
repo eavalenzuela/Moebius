@@ -65,6 +65,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 		filesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
 		r.Get("/files/{file_id}/download", filesH.Download)
+
+		// Agent-facing signing key fetch (for update signature verification)
+		agentSigKeys := NewAgentSigningKeysHandler(cfg.Pool, cfg.Log)
+		r.Get("/signing-keys/{key_id}", agentSigKeys.Get)
 	})
 
 	// File data serving (local backend) — no auth (URL from download endpoint)
@@ -170,6 +174,30 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermFilesWrite)).Put("/files/uploads/{upload_id}/chunks/{chunk_index}", filesAPI.UploadChunk)
 		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files/uploads/{upload_id}", filesAPI.UploadStatus)
 		r.With(rbac.Require(rbac.PermFilesWrite)).Post("/files/uploads/{upload_id}/complete", filesAPI.CompleteUpload)
+
+		// Agent versions
+		agentVer := NewAgentVersionsHandler(cfg.Store, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermAgentVersionsRead)).Get("/agent-versions", agentVer.List)
+		r.With(rbac.Require(rbac.PermAgentVersionsWrite)).Post("/agent-versions", agentVer.Create)
+		r.With(rbac.Require(rbac.PermAgentVersionsRead)).Get("/agent-versions/{version}", agentVer.Get)
+		r.With(rbac.Require(rbac.PermAgentVersionsWrite)).Post("/agent-versions/{version}/yank", agentVer.Yank)
+
+		// Rollout management
+		rollouts := NewRolloutsHandler(cfg.Store, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermAgentVersionsRead)).Get("/agent-versions/{version}/rollout", rollouts.GetStatus)
+		r.With(rbac.Require(rbac.PermAgentVersionsWrite)).Post("/agent-versions/{version}/rollout/pause", rollouts.Pause)
+		r.With(rbac.Require(rbac.PermAgentVersionsWrite)).Post("/agent-versions/{version}/rollout/resume", rollouts.Resume)
+		r.With(rbac.Require(rbac.PermAgentVersionsWrite)).Post("/agent-versions/{version}/rollout/abort", rollouts.Abort)
+
+		// Update policies
+		upPolicies := NewUpdatePoliciesHandler(cfg.Store, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermUpdatePoliciesRead)).Get("/update-policies", upPolicies.List)
+		r.With(rbac.Require(rbac.PermUpdatePoliciesWrite)).Post("/update-policies", upPolicies.Upsert)
+		r.With(rbac.Require(rbac.PermUpdatePoliciesWrite)).Delete("/update-policies/{policy_id}", upPolicies.Delete)
+
+		// Device rollback
+		devRollback := NewDeviceRollbackHandler(cfg.Pool, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermDevicesWrite)).Post("/devices/{device_id}/rollback", devRollback.Rollback)
 
 		// Audit log
 		auditLogH := NewAuditLogHandler(cfg.Pool, cfg.Log)

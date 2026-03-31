@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/eavalenzuela/Moebius/agent/platform"
+	agentplatform "github.com/eavalenzuela/Moebius/agent/platform"
 	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 // mockPackageManager implements platform.PackageManager for testing.
 type mockPackageManager struct {
 	manager string
-	result  platform.PackageResult
+	result  agentplatform.PackageResult
 	calls   []mockCall
 }
 
@@ -22,17 +22,17 @@ type mockCall struct {
 	version string
 }
 
-func (m *mockPackageManager) Install(name, version string) platform.PackageResult {
+func (m *mockPackageManager) Install(name, version string) agentplatform.PackageResult {
 	m.calls = append(m.calls, mockCall{"install", name, version})
 	return m.result
 }
 
-func (m *mockPackageManager) Remove(name string) platform.PackageResult {
+func (m *mockPackageManager) Remove(name string) agentplatform.PackageResult {
 	m.calls = append(m.calls, mockCall{"remove", name, ""})
 	return m.result
 }
 
-func (m *mockPackageManager) Update(name, version string) platform.PackageResult {
+func (m *mockPackageManager) Update(name, version string) agentplatform.PackageResult {
 	m.calls = append(m.calls, mockCall{"update", name, version})
 	return m.result
 }
@@ -49,7 +49,7 @@ func testExecutor(mgr *mockPackageManager) *Executor {
 func TestExecutePackageInstall_Success(t *testing.T) {
 	mgr := &mockPackageManager{
 		manager: "apt",
-		result:  platform.PackageResult{Success: true, Stdout: "installed ok"},
+		result:  agentplatform.PackageResult{Success: true, Stdout: "installed ok"},
 	}
 	e := testExecutor(mgr)
 
@@ -70,7 +70,7 @@ func TestExecutePackageInstall_Success(t *testing.T) {
 func TestExecutePackageInstall_Failure(t *testing.T) {
 	mgr := &mockPackageManager{
 		manager: "apt",
-		result:  platform.PackageResult{ExitCode: 100, Error: "package not found", Stderr: "E: Unable to locate package"},
+		result:  agentplatform.PackageResult{ExitCode: 100, Error: "package not found", Stderr: "E: Unable to locate package"},
 	}
 	e := testExecutor(mgr)
 
@@ -110,7 +110,7 @@ func TestExecutePackageInstall_EmptyName(t *testing.T) {
 func TestExecutePackageRemove_Success(t *testing.T) {
 	mgr := &mockPackageManager{
 		manager: "dnf",
-		result:  platform.PackageResult{Success: true, Stdout: "removed"},
+		result:  agentplatform.PackageResult{Success: true, Stdout: "removed"},
 	}
 	e := testExecutor(mgr)
 
@@ -147,7 +147,7 @@ func TestExecutePackageRemove_EmptyName(t *testing.T) {
 func TestExecutePackageUpdate_Success(t *testing.T) {
 	mgr := &mockPackageManager{
 		manager: "apt",
-		result:  platform.PackageResult{Success: true, Stdout: "upgraded"},
+		result:  agentplatform.PackageResult{Success: true, Stdout: "upgraded"},
 	}
 	e := testExecutor(mgr)
 
@@ -198,7 +198,7 @@ func TestExecutePackage_NilManager(t *testing.T) {
 func TestExecute_PackageJobTypes(t *testing.T) {
 	mgr := &mockPackageManager{
 		manager: "apt",
-		result:  platform.PackageResult{Success: true},
+		result:  agentplatform.PackageResult{Success: true},
 	}
 	e := testExecutor(mgr)
 

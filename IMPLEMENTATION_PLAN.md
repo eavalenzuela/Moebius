@@ -520,19 +520,19 @@ Handle `file_transfer` job type in executor per `FILE_TRANSFER_SPEC.md` agent fl
 
 ## Phase 13 — Agent Update
 
-- [ ] **13.1** Agent version registry (server)
+- [x] **13.1** Agent version registry (server)
 Per `AGENT_UPDATE_SPEC.md`:
 - `POST /v1/agent-versions` — publish version with per-platform binaries (sha256, Ed25519 signature, file_id)
 - `GET /v1/agent-versions` — list (filter by channel, paginated)
 - `GET /v1/agent-versions/{version}`
 - `POST /v1/agent-versions/{version}/yank` — suppress from auto-update, warn on manual
 
-- [ ] **13.2** Auto-update policy management
+- [x] **13.2** Auto-update policy management
 - Tenant-level default + group-level override in `agent_update_policies` table
 - Policy fields: enabled, channel, schedule (cron), rollout strategy (immediate/gradual), batch_percent, batch_interval_minutes
 - Scheduler evaluates policies when new versions are published
 
-- [ ] **13.3** Gradual rollout controller (scheduler)
+- [x] **13.3** Gradual rollout controller (scheduler)
 Per `AGENT_UPDATE_SPEC.md` rollout section:
 - Select batch_percent% of devices randomly (seeded per rollout)
 - Enqueue `agent_update` jobs for batch
@@ -541,7 +541,7 @@ Per `AGENT_UPDATE_SPEC.md` rollout section:
 - `GET /v1/agent-versions/{version}/rollout` — status
 - `POST .../rollout/pause`, `.../rollout/resume`, `.../rollout/abort`
 
-- [ ] **13.4** Agent update handler
+- [x] **13.4** Agent update handler
 Handle `agent_update` job in executor per `AGENT_UPDATE_SPEC.md` flow:
 1. Pre-flight: version check (no downgrades unless `force: true`), disk space check, current binary path check
 2. Download new binary in chunks (reuse file transfer download logic)
@@ -551,19 +551,19 @@ Handle `agent_update` job in executor per `AGENT_UPDATE_SPEC.md` flow:
 6. Submit partial result (`status: restarting`)
 7. Signal service manager to restart
 
-- [ ] **13.5** Post-restart verification (agent)
+- [x] **13.5** Post-restart verification (agent)
 - On startup, check for `pending_update.json`
 - Verify own version matches `expected_version`
 - If match: complete update job, delete verification file
 - If mismatch or deadline exceeded: trigger automatic rollback
 
-- [ ] **13.6** Automatic rollback
+- [x] **13.6** Automatic rollback
 - Rename `agent.previous` back to `agent` atomically
 - Restart into restored binary
 - Report rollback on next check-in (`last_update_failed: true`, error details)
 - Server marks update job `FAILED`, suppresses auto-update retries until operator review
 
-- [ ] **13.7** Manual rollback endpoint
+- [x] **13.7** Manual rollback endpoint
 `POST /v1/devices/{device_id}/rollback` per `AGENT_UPDATE_SPEC.md`:
 - Enqueue `agent_rollback` job
 - Agent verifies `agent.previous` exists and meets `min_rollback_version`

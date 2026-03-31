@@ -18,29 +18,32 @@ func newID(prefix string) string {
 	return prefix + "_" + hex.EncodeToString(b)
 }
 
-func NewTenantID() string          { return newID("ten") }
-func NewUserID() string            { return newID("usr") }
-func NewRoleID() string            { return newID("rol") }
-func NewAPIKeyID() string          { return newID("key") }
-func NewDeviceID() string          { return newID("dev") }
-func NewGroupID() string           { return newID("grp") }
-func NewTagID() string             { return newID("tag") }
-func NewSiteID() string            { return newID("sit") }
-func NewJobID() string             { return newID("job") }
-func NewJobResultID() string       { return newID("jrs") }
-func NewScheduledJobID() string    { return newID("sjb") }
-func NewAuditEntryID() string      { return newID("aud") }
-func NewAlertRuleID() string       { return newID("alr") }
-func NewCertificateID() string     { return newID("crt") }
-func NewEnrollmentTokenID() string { return newID("enr") }
-func NewSigningKeyID() string      { return newID("sgk") }
-func NewFileID() string            { return newID("fil") }
-func NewUploadID() string          { return newID("upl") }
-func NewAgentVersionID() string    { return newID("avg") }
-func NewInstallerID() string       { return newID("ins") }
-func NewInventoryHWID() string     { return newID("ihw") }
-func NewInventoryPkgID() string    { return newID("ipk") }
-func NewDeviceLogID() string       { return newID("dlg") }
+func NewTenantID() string             { return newID("ten") }
+func NewUserID() string               { return newID("usr") }
+func NewRoleID() string               { return newID("rol") }
+func NewAPIKeyID() string             { return newID("key") }
+func NewDeviceID() string             { return newID("dev") }
+func NewGroupID() string              { return newID("grp") }
+func NewTagID() string                { return newID("tag") }
+func NewSiteID() string               { return newID("sit") }
+func NewJobID() string                { return newID("job") }
+func NewJobResultID() string          { return newID("jrs") }
+func NewScheduledJobID() string       { return newID("sjb") }
+func NewAuditEntryID() string         { return newID("aud") }
+func NewAlertRuleID() string          { return newID("alr") }
+func NewCertificateID() string        { return newID("crt") }
+func NewEnrollmentTokenID() string    { return newID("enr") }
+func NewSigningKeyID() string         { return newID("sgk") }
+func NewFileID() string               { return newID("fil") }
+func NewUploadID() string             { return newID("upl") }
+func NewAgentVersionID() string       { return newID("avg") }
+func NewInstallerID() string          { return newID("ins") }
+func NewInventoryHWID() string        { return newID("ihw") }
+func NewInventoryPkgID() string       { return newID("ipk") }
+func NewDeviceLogID() string          { return newID("dlg") }
+func NewAgentVersionBinaryID() string { return newID("avb") }
+func NewUpdatePolicyID() string       { return newID("aup") }
+func NewRolloutID() string            { return newID("rol") }
 
 // ValidPrefix checks if an ID starts with the expected prefix.
 func ValidPrefix(id, prefix string) bool {

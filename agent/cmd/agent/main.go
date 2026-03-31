@@ -24,6 +24,7 @@ import (
 	"github.com/eavalenzuela/Moebius/agent/poller"
 	"github.com/eavalenzuela/Moebius/agent/renewal"
 	"github.com/eavalenzuela/Moebius/agent/tlsutil"
+	"github.com/eavalenzuela/Moebius/agent/update"
 	"github.com/eavalenzuela/Moebius/shared/version"
 )
 
@@ -155,9 +156,31 @@ func runDaemon() error {
 	}
 	log.Info("CDM initialized", slog.Bool("enabled", cdmMgr.Enabled()))
 
+	// Check for pending update from a previous restart
+	if result := update.CheckPostRestart(plat.PendingUpdatePath(), log); result != nil {
+		if result.Success {
+			log.Info("post-restart update verification passed",
+				slog.String("job_id", result.Pending.JobID))
+			// Job completion will be reported on next check-in
+			_ = update.RemovePending(plat.PendingUpdatePath())
+		} else if result.NeedRoll {
+			log.Error("post-restart verification failed, rolling back",
+				slog.String("error", result.Error))
+			if err := update.Rollback(plat.BinaryPath(), plat.BinaryPreviousPath(), plat.PendingUpdatePath(), log); err != nil {
+				log.Error("automatic rollback failed", slog.String("error", err.Error()))
+			}
+			// Continue running — the poller will report the rollback status
+		}
+	}
+
 	// Start poller with executor and inventory
 	inv := inventory.New(log)
 	exec := executor.New(cfg.Server.URL, client, inv, cdmMgr, plat.DropDir(), log)
+	exec.SetPlatform(plat)
+	exec.SetPollInterval(cfg.Server.PollIntervalSeconds)
+	exec.SetRestartFunc(func() error {
+		return restartService(plat.ServiceName())
+	})
 	p := poller.New(poller.Config{
 		ServerURL:     cfg.Server.URL,
 		AgentID:       agentID,

@@ -21,6 +21,12 @@ type Platform interface {
 	CDMAuditLogPath() string     // cdm-audit.log (CDM local audit)
 	DropDir() string             // file transfer drop directory
 
+	// Agent update paths
+	BinaryPath() string         // current agent binary
+	BinaryStagingPath() string  // .new binary during update
+	BinaryPreviousPath() string // .previous for rollback
+	PendingUpdatePath() string  // pending_update.json
+
 	// Service
 	ServiceName() string
 }

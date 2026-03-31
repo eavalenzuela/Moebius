@@ -6,10 +6,10 @@
 //
 // Usage: moebius-pkg-helper <manager> <action> <package> [version]
 //
-//   manager: "apt" or "dnf"
-//   action:  "install", "remove", or "update"
-//   package: package name (validated against shell metacharacters)
-//   version: optional version constraint
+//	manager: "apt" or "dnf"
+//	action:  "install", "remove", or "update"
+//	package: package name (validated against shell metacharacters)
+//	version: optional version constraint
 package main
 
 import (

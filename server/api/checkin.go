@@ -76,6 +76,30 @@ func (h *CheckinHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle failed update report from agent
+	if req.Status.LastUpdateFailed && req.Status.LastUpdateJobID != "" {
+		_, err := h.pool.Exec(ctx,
+			`UPDATE jobs SET status = $1, last_error = $2, completed_at = $3
+			 WHERE id = $4 AND tenant_id = $5 AND status != $1`,
+			models.JobStatusFailed,
+			req.Status.LastUpdateError,
+			now,
+			req.Status.LastUpdateJobID,
+			tenantID,
+		)
+		if err != nil {
+			h.log.Error("failed to mark update job as failed",
+				slog.String("job_id", req.Status.LastUpdateJobID),
+				slog.String("error", err.Error()))
+		} else {
+			h.log.Info("marked update job as failed (agent rollback)",
+				slog.String("job_id", req.Status.LastUpdateJobID))
+			_ = h.audit.LogAction(ctx, tenantID, agentID, "agent",
+				"agent_update.rollback", "job", req.Status.LastUpdateJobID,
+				map[string]any{"error": req.Status.LastUpdateError})
+		}
+	}
+
 	// Process inventory delta if present
 	if req.InventoryDelta != nil && req.InventoryDelta.Packages != nil {
 		if err := h.processPackageDelta(ctx, agentID, req.InventoryDelta.Packages); err != nil {

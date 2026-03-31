@@ -15,19 +15,22 @@ import (
 
 	"github.com/eavalenzuela/Moebius/agent/cdm"
 	"github.com/eavalenzuela/Moebius/agent/inventory"
-	"github.com/eavalenzuela/Moebius/agent/platform"
+	agentplatform "github.com/eavalenzuela/Moebius/agent/platform"
 	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
 // Executor receives jobs from the poller and runs them.
 type Executor struct {
-	serverURL string
-	client    *http.Client
-	log       *slog.Logger
-	inventory *inventory.Collector
-	cdm       *cdm.Manager
-	dropDir   string
-	pkgMgr    platform.PackageManager // injectable for testing; nil uses platform default
+	serverURL    string
+	client       *http.Client
+	log          *slog.Logger
+	inventory    *inventory.Collector
+	cdm          *cdm.Manager
+	dropDir      string
+	pkgMgr       agentplatform.PackageManager // injectable for testing; nil uses platform default
+	platform     agentplatform.Platform       // for update/rollback paths; nil in some tests
+	pollInterval int                          // seconds; used for pending_update deadline
+	restartFunc  func() error                 // injectable; signals service restart
 }
 
 // New creates an Executor.
@@ -41,6 +44,15 @@ func New(serverURL string, client *http.Client, inv *inventory.Collector, cdmMgr
 		dropDir:   dropDir,
 	}
 }
+
+// SetPlatform configures platform-specific paths for agent update/rollback.
+func (e *Executor) SetPlatform(plat agentplatform.Platform) { e.platform = plat }
+
+// SetPollInterval sets the poll interval (seconds) used for update deadline calculation.
+func (e *Executor) SetPollInterval(seconds int) { e.pollInterval = seconds }
+
+// SetRestartFunc sets the function called to restart the agent service after an update.
+func (e *Executor) SetRestartFunc(f func() error) { e.restartFunc = f }
 
 // HandleJob is the poller.JobHandler callback. It runs in a new goroutine per job.
 func (e *Executor) HandleJob(job protocol.JobDispatch) {
@@ -92,6 +104,14 @@ func (e *Executor) runJob(ctx context.Context, job protocol.JobDispatch) {
 		slog.String("job_id", job.JobID),
 		slog.String("status", result.Status),
 	)
+
+	// If the update handler returned "restarting", trigger a service restart.
+	if result.Status == "restarting" && e.restartFunc != nil {
+		e.log.Info("triggering service restart for agent update")
+		if err := e.restartFunc(); err != nil {
+			e.log.Error("service restart failed", slog.String("error", err.Error()))
+		}
+	}
 }
 
 func (e *Executor) execute(ctx context.Context, job protocol.JobDispatch) protocol.JobResultSubmission {
@@ -108,6 +128,10 @@ func (e *Executor) execute(ctx context.Context, job protocol.JobDispatch) protoc
 		return e.executePackageRemove(job.Payload)
 	case "package_update":
 		return e.executePackageUpdate(job.Payload)
+	case "agent_update":
+		return e.executeAgentUpdate(ctx, job.JobID, job.Payload)
+	case "agent_rollback":
+		return e.executeAgentRollback(ctx, job.Payload)
 	default:
 		return protocol.JobResultSubmission{
 			Status:  "failed",

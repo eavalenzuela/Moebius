@@ -49,4 +49,15 @@ func (p *Platform) CDMAuditLogPath() string {
 
 func (p *Platform) DropDir() string { return "/opt/moebius-agent/drop" }
 
+func (p *Platform) BinaryPath() string { return filepath.Join(p.BinaryDir(), "moebius-agent") }
+func (p *Platform) BinaryStagingPath() string {
+	return filepath.Join(p.BinaryDir(), "moebius-agent.new")
+}
+func (p *Platform) BinaryPreviousPath() string {
+	return filepath.Join(p.BinaryDir(), "moebius-agent.previous")
+}
+func (p *Platform) PendingUpdatePath() string {
+	return filepath.Join(p.DataDir(), "pending_update.json")
+}
+
 func (p *Platform) ServiceName() string { return "moebius-agent" }

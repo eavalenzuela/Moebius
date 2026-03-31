@@ -35,6 +35,10 @@ const (
 	PermTenantWrite          = "tenant:write"
 	PermScheduledJobsRead    = "scheduled_jobs:read"
 	PermScheduledJobsWrite   = "scheduled_jobs:write"
+	PermAgentVersionsRead    = "agent_versions:read"
+	PermAgentVersionsWrite   = "agent_versions:write"
+	PermUpdatePoliciesRead   = "update_policies:read"
+	PermUpdatePoliciesWrite  = "update_policies:write"
 )
 
 // AllPermissions is the complete set of permissions.
@@ -56,6 +60,8 @@ var AllPermissions = []string{
 	PermAuditLogRead,
 	PermTenantRead, PermTenantWrite,
 	PermScheduledJobsRead, PermScheduledJobsWrite,
+	PermAgentVersionsRead, PermAgentVersionsWrite,
+	PermUpdatePoliciesRead, PermUpdatePoliciesWrite,
 }
 
 // Predefined role permission sets per FEATURE_REQUIREMENTS.md.
@@ -80,6 +86,8 @@ var (
 		PermAuditLogRead,
 		PermTenantRead, PermTenantWrite,
 		PermScheduledJobsRead, PermScheduledJobsWrite,
+		PermAgentVersionsRead, PermAgentVersionsWrite,
+		PermUpdatePoliciesRead, PermUpdatePoliciesWrite,
 	}
 
 	OperatorPermissions = []string{
@@ -95,6 +103,8 @@ var (
 		PermSigningKeysRead, PermSigningKeysWrite,
 		PermAlertsRead, PermAlertsWrite,
 		PermScheduledJobsRead, PermScheduledJobsWrite,
+		PermAgentVersionsRead, PermAgentVersionsWrite,
+		PermUpdatePoliciesRead, PermUpdatePoliciesWrite,
 	}
 
 	TechnicianPermissions = []string{

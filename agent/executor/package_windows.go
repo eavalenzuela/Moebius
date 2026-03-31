@@ -3,10 +3,10 @@
 package executor
 
 import (
-	"github.com/eavalenzuela/Moebius/agent/platform"
+	agentplatform "github.com/eavalenzuela/Moebius/agent/platform"
 	"github.com/eavalenzuela/Moebius/agent/platform/windows"
 )
 
-func (e *Executor) getPackageManager(managerHint string) platform.PackageManager {
+func (e *Executor) getPackageManager(managerHint string) agentplatform.PackageManager {
 	return windows.NewPkgManager(managerHint)
 }

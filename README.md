@@ -18,7 +18,7 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed task tracking.
 - [x] **Phase 10** — Log Shipping
 - [x] **Phase 11** — File Transfer
 - [x] **Phase 12** — Package Management Jobs
-- [ ] **Phase 13** — Agent Update
+- [x] **Phase 13** — Agent Update
 - [ ] **Phase 14** — Scheduling & Alerting
 - [ ] **Phase 15** — Agent Local Interfaces
 - [ ] **Phase 16** — Installer & Packaging

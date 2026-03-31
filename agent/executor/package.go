@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/eavalenzuela/Moebius/agent/platform"
+	agentplatform "github.com/eavalenzuela/Moebius/agent/platform"
 	"github.com/eavalenzuela/Moebius/shared/protocol"
 )
 
@@ -94,7 +94,7 @@ func (e *Executor) executePackageUpdate(payload json.RawMessage) protocol.JobRes
 
 // resolvePackageManager returns the injected package manager (for testing)
 // or falls back to the platform-specific implementation.
-func (e *Executor) resolvePackageManager(managerHint string) platform.PackageManager {
+func (e *Executor) resolvePackageManager(managerHint string) agentplatform.PackageManager {
 	if e.pkgMgr != nil {
 		return e.pkgMgr
 	}
@@ -104,7 +104,7 @@ func (e *Executor) resolvePackageManager(managerHint string) platform.PackageMan
 // packageResultToJob converts a platform.PackageResult to a protocol.JobResultSubmission.
 // On success, it also triggers an inventory refresh so the next check-in
 // includes the package delta.
-func (e *Executor) packageResultToJob(r platform.PackageResult, action, pkgName string) protocol.JobResultSubmission {
+func (e *Executor) packageResultToJob(r agentplatform.PackageResult, action, pkgName string) protocol.JobResultSubmission {
 	exitCode := r.ExitCode
 
 	if r.Success {
