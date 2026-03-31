@@ -180,9 +180,46 @@ func TestLoad_SchedulerMinimal(t *testing.T) {
 	setEnv(t, sharedEnv())
 
 	// Scheduler only needs shared vars
-	_, err := Load(ProcessScheduler)
+	cfg, err := Load(ProcessScheduler)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SchedulerTickSeconds != 30 {
+		t.Errorf("SchedulerTickSeconds = %d, want 30", cfg.SchedulerTickSeconds)
+	}
+	if cfg.SMTPPort != 587 {
+		t.Errorf("SMTPPort = %d, want 587", cfg.SMTPPort)
+	}
+	if cfg.SMTPFrom != "moebius@localhost" {
+		t.Errorf("SMTPFrom = %q, want %q", cfg.SMTPFrom, "moebius@localhost")
+	}
+}
+
+func TestLoad_SchedulerCustomSMTP(t *testing.T) {
+	env := sharedEnv()
+	env["SCHEDULER_TICK_SECONDS"] = "10"
+	env["SMTP_HOST"] = "smtp.example.com"
+	env["SMTP_PORT"] = "465"
+	env["SMTP_USERNAME"] = "user"
+	env["SMTP_PASSWORD"] = "pass"
+	env["SMTP_FROM"] = "alerts@example.com"
+	setEnv(t, env)
+
+	cfg, err := Load(ProcessScheduler)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.SchedulerTickSeconds != 10 {
+		t.Errorf("SchedulerTickSeconds = %d, want 10", cfg.SchedulerTickSeconds)
+	}
+	if cfg.SMTPHost != "smtp.example.com" {
+		t.Errorf("SMTPHost = %q, want %q", cfg.SMTPHost, "smtp.example.com")
+	}
+	if cfg.SMTPPort != 465 {
+		t.Errorf("SMTPPort = %d, want 465", cfg.SMTPPort)
+	}
+	if cfg.SMTPFrom != "alerts@example.com" {
+		t.Errorf("SMTPFrom = %q, want %q", cfg.SMTPFrom, "alerts@example.com")
 	}
 }
 

@@ -199,6 +199,26 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		devRollback := NewDeviceRollbackHandler(cfg.Pool, cfg.Audit, cfg.Log)
 		r.With(rbac.Require(rbac.PermDevicesWrite)).Post("/devices/{device_id}/rollback", devRollback.Rollback)
 
+		// Scheduled jobs
+		schedJobs := NewScheduledJobsHandler(cfg.Store, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermScheduledJobsRead)).Get("/scheduled-jobs", schedJobs.List)
+		r.With(rbac.Require(rbac.PermScheduledJobsWrite)).Post("/scheduled-jobs", schedJobs.Create)
+		r.With(rbac.Require(rbac.PermScheduledJobsRead)).Get("/scheduled-jobs/{scheduled_job_id}", schedJobs.Get)
+		r.With(rbac.Require(rbac.PermScheduledJobsWrite)).Patch("/scheduled-jobs/{scheduled_job_id}", schedJobs.Update)
+		r.With(rbac.Require(rbac.PermScheduledJobsWrite)).Delete("/scheduled-jobs/{scheduled_job_id}", schedJobs.Delete)
+		r.With(rbac.Require(rbac.PermScheduledJobsWrite)).Post("/scheduled-jobs/{scheduled_job_id}/enable", schedJobs.Enable)
+		r.With(rbac.Require(rbac.PermScheduledJobsWrite)).Post("/scheduled-jobs/{scheduled_job_id}/disable", schedJobs.Disable)
+
+		// Alert rules
+		alertRules := NewAlertRulesHandler(cfg.Store, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermAlertsRead)).Get("/alert-rules", alertRules.List)
+		r.With(rbac.Require(rbac.PermAlertsWrite)).Post("/alert-rules", alertRules.Create)
+		r.With(rbac.Require(rbac.PermAlertsRead)).Get("/alert-rules/{rule_id}", alertRules.Get)
+		r.With(rbac.Require(rbac.PermAlertsWrite)).Patch("/alert-rules/{rule_id}", alertRules.Update)
+		r.With(rbac.Require(rbac.PermAlertsWrite)).Delete("/alert-rules/{rule_id}", alertRules.Delete)
+		r.With(rbac.Require(rbac.PermAlertsWrite)).Post("/alert-rules/{rule_id}/enable", alertRules.Enable)
+		r.With(rbac.Require(rbac.PermAlertsWrite)).Post("/alert-rules/{rule_id}/disable", alertRules.Disable)
+
 		// Audit log
 		auditLogH := NewAuditLogHandler(cfg.Pool, cfg.Log)
 		r.With(rbac.Require(rbac.PermAuditLogRead)).Get("/audit-log", auditLogH.List)

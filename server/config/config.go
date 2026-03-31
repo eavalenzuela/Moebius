@@ -38,6 +38,14 @@ type Config struct {
 
 	// Worker only
 	WorkerConcurrency int
+
+	// Scheduler only
+	SchedulerTickSeconds int    // tick interval for cron evaluation
+	SMTPHost             string // SMTP server host for email alerts
+	SMTPPort             int
+	SMTPUsername         string
+	SMTPPassword         string
+	SMTPFrom             string // sender address for alert emails
 }
 
 // Process identifies which server binary is loading the config.
@@ -74,7 +82,13 @@ func Load(proc Process) (*Config, error) {
 		OIDCIssuerURL:     os.Getenv("OIDC_ISSUER_URL"),
 		OIDCClientID:      os.Getenv("OIDC_CLIENT_ID"),
 		OIDCClientSecret:  os.Getenv("OIDC_CLIENT_SECRET"),
-		WorkerConcurrency: envIntOrDefault("WORKER_CONCURRENCY", 20),
+		WorkerConcurrency:    envIntOrDefault("WORKER_CONCURRENCY", 20),
+		SchedulerTickSeconds: envIntOrDefault("SCHEDULER_TICK_SECONDS", 30),
+		SMTPHost:             os.Getenv("SMTP_HOST"),
+		SMTPPort:             envIntOrDefault("SMTP_PORT", 587),
+		SMTPUsername:         os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:         os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:             envOrDefault("SMTP_FROM", "moebius@localhost"),
 	}
 
 	if err := c.validate(proc); err != nil {

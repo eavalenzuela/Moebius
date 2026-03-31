@@ -573,35 +573,35 @@ Handle `agent_update` job in executor per `AGENT_UPDATE_SPEC.md` flow:
 
 ## Phase 14 — Scheduling & Alerting
 
-- [ ] **14.1** Scheduler process
+- [x] **14.1** Scheduler process
 Per `SERVER_DEPLOYMENT_SPEC.md`:
 - Single active instance via PostgreSQL advisory lock (leader election)
 - Tick loop evaluating cron expressions and timed events
 - Second replica can stand by for failover
 
-- [ ] **14.2** Scheduled jobs
+- [x] **14.2** Scheduled jobs
 - Evaluate `scheduled_jobs` table cron expressions against current time
 - When due: resolve target (device/group/tag/site), create individual jobs via NATS
 - Update `last_run_at`, compute `next_run_at`
 - Respect enabled/disabled flag
 
-- [ ] **14.3** Scheduled job endpoints
+- [x] **14.3** Scheduled job endpoints
 Per `REST_API_SPEC.md`:
 - `GET /v1/scheduled-jobs`, `POST /v1/scheduled-jobs`
 - `GET /v1/scheduled-jobs/{id}`, `PATCH /v1/scheduled-jobs/{id}`, `DELETE /v1/scheduled-jobs/{id}`
 - `POST /v1/scheduled-jobs/{id}/enable`, `POST /v1/scheduled-jobs/{id}/disable`
 
-- [ ] **14.4** Alert rule engine
+- [x] **14.4** Alert rule engine
 - Scheduler monitors device `last_seen_at` timestamps
 - Evaluate alert rule conditions (e.g. `agent_offline` with `threshold_minutes`)
 - Fire matching rules through configured channels
 
-- [ ] **14.5** Alert notification channels
+- [x] **14.5** Alert notification channels
 - Webhook: POST JSON payload to configured URLs
 - Email: send via SMTP
 - Per `REST_API_SPEC.md` alert rule format: condition + channels + scope
 
-- [ ] **14.6** Alert rule endpoints
+- [x] **14.6** Alert rule endpoints
 - `GET /v1/alert-rules`, `POST /v1/alert-rules`
 - `GET /v1/alert-rules/{rule_id}`, `PATCH /v1/alert-rules/{rule_id}`, `DELETE /v1/alert-rules/{rule_id}`
 - `POST /v1/alert-rules/{rule_id}/enable`, `POST /v1/alert-rules/{rule_id}/disable`
