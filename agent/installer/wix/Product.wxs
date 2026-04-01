@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Moebius Agent — WiX v4 MSI Installer
+
+  Build:
+    wix build -d ProductVersion=1.0.0 ^
+              -d AgentBinaryPath=dist\agent-windows-amd64.exe ^
+              -d SetupScriptPath=agent\installer\wix\Setup.ps1 ^
+              -arch x64 ^
+              -o dist\agent-windows-amd64-1.0.0.msi ^
+              agent\installer\wix\Product.wxs
+
+  Install (silent):
+    msiexec /i agent-windows-amd64-1.0.0.msi /quiet ^
+      ENROLLMENT_TOKEN=enr_01HZ_secret ^
+      SERVER_URL=https://manage.example.com ^
+      CDM_ENABLED=0
+
+  Uninstall (soft — retains config/certs/data):
+    msiexec /x agent-windows-amd64-1.0.0.msi /quiet
+
+  Uninstall (purge — removes everything):
+    msiexec /x agent-windows-amd64-1.0.0.msi /quiet PURGE=1
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package Name="Moebius Device Management Agent"
+           Manufacturer="Moebius Project"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="7A3E2F1B-9C4D-4E5F-8A6B-1D2E3F4A5B6C"
+           Scope="perMachine"
+           Language="1033"
+           Codepage="1252"
+           InstallerVersion="500">
+
+    <SummaryInformation Description="Moebius Device Management Agent for Windows"
+                        Manufacturer="Moebius Project" />
+
+    <!-- Removes any prior version before installing. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Moebius Agent is already installed."
+                  Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- ================================================================
+         Public Properties (pass via msiexec command line)
+         ================================================================ -->
+    <Property Id="ENROLLMENT_TOKEN" Secure="yes" />
+    <Property Id="SERVER_URL" Secure="yes" />
+    <Property Id="CDM_ENABLED" Value="0" Secure="yes" />
+    <Property Id="PURGE" Value="0" Secure="yes" />
+
+    <!-- ================================================================
+         Directory layout
+         ================================================================ -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="MoebiusAgent" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="DATAFOLDER" Name="MoebiusAgent">
+        <Directory Id="DROPFOLDER" Name="drop" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- ================================================================
+         Components
+         ================================================================ -->
+
+    <!--
+      Agent binary + Windows Service.
+      Service runs as the virtual account NT SERVICE\MoebiusAgent (minimal privilege).
+      Auto-start, restart on failure, runs "moebius-agent.exe run".
+    -->
+    <Component Id="AgentBinaryAndService" Directory="INSTALLFOLDER"
+               Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890" Win64="yes">
+      <File Id="MoebiusAgentExe"
+            Source="$(var.AgentBinaryPath)"
+            Name="moebius-agent.exe"
+            KeyPath="yes" />
+
+      <ServiceInstall Id="MoebiusAgentSvc"
+                      Name="MoebiusAgent"
+                      DisplayName="Moebius Device Management Agent"
+                      Description="Polls the Moebius management server, executes jobs, and ships inventory."
+                      Type="ownProcess"
+                      Start="auto"
+                      ErrorControl="normal"
+                      Arguments="run"
+                      Account="NT SERVICE\MoebiusAgent" />
+
+      <ServiceControl Id="MoebiusAgentCtl"
+                      Name="MoebiusAgent"
+                      Start="install"
+                      Stop="both"
+                      Remove="uninstall"
+                      Wait="yes" />
+    </Component>
+
+    <!-- ProgramData\MoebiusAgent (config, certs, data) -->
+    <Component Id="DataFolderComp" Directory="DATAFOLDER"
+               Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901" Win64="yes">
+      <CreateFolder />
+    </Component>
+
+    <!-- ProgramData\MoebiusAgent\drop (file transfer) -->
+    <Component Id="DropFolderComp" Directory="DROPFOLDER"
+               Guid="C3D4E5F6-A7B8-9012-CDEF-123456789012" Win64="yes">
+      <CreateFolder />
+    </Component>
+
+    <!-- Setup.ps1 — installed temporarily, removed after custom action runs -->
+    <Component Id="SetupScriptComp" Directory="INSTALLFOLDER"
+               Guid="E5F6A7B8-C9D0-1234-EFAB-345678901234" Win64="yes"
+               Transitive="yes">
+      <File Id="SetupPs1"
+            Source="$(var.SetupScriptPath)"
+            Name="Setup.ps1"
+            KeyPath="yes" />
+      <RemoveFile Id="RemoveSetupPs1" Name="Setup.ps1" On="uninstall" />
+    </Component>
+
+    <!-- ================================================================
+         Features
+         ================================================================ -->
+    <Feature Id="Complete" Title="Moebius Agent" Level="1"
+             Description="Moebius Device Management Agent and Windows Service."
+             ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentRef Id="AgentBinaryAndService" />
+      <ComponentRef Id="DataFolderComp" />
+      <ComponentRef Id="DropFolderComp" />
+      <ComponentRef Id="SetupScriptComp" />
+    </Feature>
+
+    <!-- ================================================================
+         Custom Actions
+         ================================================================ -->
+
+    <!--
+      CA_PostInstall: runs Setup.ps1 -Action install to write config, token,
+      import CA cert, set ACLs, configure service recovery.
+      Deferred + elevated (runs as SYSTEM after files are copied).
+    -->
+    <CustomAction Id="CA_PostInstall"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Setup.ps1&quot; -Action install -DataDir &quot;[DATAFOLDER]&quot; -ServerUrl &quot;[SERVER_URL]&quot; -Token &quot;[ENROLLMENT_TOKEN]&quot; -CdmEnabled &quot;[CDM_ENABLED]&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <!--
+      CA_Purge: runs Setup.ps1 -Action purge to remove data dir and CA cert
+      from the certificate store. Only on uninstall with PURGE=1.
+    -->
+    <CustomAction Id="CA_Purge"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Setup.ps1&quot; -Action purge -DataDir &quot;[DATAFOLDER]&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <!--
+      CA_CleanupScript: remove Setup.ps1 from install dir after it runs.
+      The script is only needed during install; don't leave it on disk.
+    -->
+    <CustomAction Id="CA_CleanupScript"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand='cmd.exe /c del /q "[INSTALLFOLDER]Setup.ps1"'
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <!-- ================================================================
+         Execution sequence
+         ================================================================ -->
+    <InstallExecuteSequence>
+      <!-- On install: run setup script after files are copied, before service starts -->
+      <Custom Action="CA_PostInstall" After="InstallFiles">
+        NOT Installed
+      </Custom>
+      <Custom Action="CA_CleanupScript" After="CA_PostInstall">
+        NOT Installed
+      </Custom>
+
+      <!-- On uninstall with PURGE=1: purge data and CA cert before files are removed -->
+      <Custom Action="CA_Purge" Before="RemoveFiles">
+        REMOVE~="ALL" AND PURGE="1"
+      </Custom>
+    </InstallExecuteSequence>
+
+  </Package>
+</Wix>

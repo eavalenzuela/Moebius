@@ -46,6 +46,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	enrollHandler := NewEnrollHandler(cfg.Pool, cfg.Enrollment, cfg.CA, cfg.Audit, cfg.Log)
 	r.Post("/v1/agents/enroll", enrollHandler.ServeHTTP)
 
+	// Install script (unauthenticated, enrollment-token-gated via query param)
+	installScript := NewInstallScriptHandler(cfg.Pool, cfg.Enrollment, cfg.Audit, cfg.Log)
+	r.Get("/v1/install/{os}/{arch}", installScript.ServeInstallScript)
+
+	// Installer downloads (self-authenticated: accepts API key or enrollment token)
+	installersDownload := NewInstallersHandler(cfg.Pool, cfg.Storage, cfg.Enrollment, cfg.Audit, cfg.Log)
+	r.Get("/v1/installers/{os}/{arch}/latest", installersDownload.DownloadLatest)
+	r.Get("/v1/installers/{os}/{arch}/{version}", installersDownload.Download)
+	r.Get("/v1/installers/{os}/{arch}/{version}/checksum", installersDownload.Checksum)
+	r.Get("/v1/installers/{os}/{arch}/{version}/signature", installersDownload.Signature)
+
 	// Agent endpoints (mTLS-authenticated)
 	mtls := auth.NewMTLSMiddleware(cfg.Pool, cfg.Log)
 	r.Route("/v1/agents", func(r chi.Router) {
@@ -228,6 +239,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermEnrollmentTokenWrite)).Get("/enrollment-tokens", enrollTokens.List)
 		r.With(rbac.Require(rbac.PermEnrollmentTokenWrite)).Post("/enrollment-tokens", enrollTokens.Create)
 		r.With(rbac.Require(rbac.PermEnrollmentTokenWrite)).Delete("/enrollment-tokens/{token_id}", enrollTokens.Delete)
+
+		// Install command generation (requires enrollment token write permission)
+		installCmd := NewInstallScriptHandler(cfg.Pool, cfg.Enrollment, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermEnrollmentTokenWrite)).Post("/enrollment-tokens/{token_id}/install-command", installCmd.GenerateInstallCommand)
+
+		// Installers (list + admin upload — API key auth)
+		installersAPI := NewInstallersHandler(cfg.Pool, cfg.Storage, cfg.Enrollment, cfg.Audit, cfg.Log)
+		r.With(rbac.Require(rbac.PermInstallersRead)).Get("/installers", installersAPI.List)
+		r.With(rbac.Require(rbac.PermInstallersWrite)).Post("/installers", installersAPI.Create)
 	})
 
 	return r

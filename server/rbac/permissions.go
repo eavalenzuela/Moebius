@@ -39,6 +39,8 @@ const (
 	PermAgentVersionsWrite   = "agent_versions:write"
 	PermUpdatePoliciesRead   = "update_policies:read"
 	PermUpdatePoliciesWrite  = "update_policies:write"
+	PermInstallersRead       = "installers:read"
+	PermInstallersWrite      = "installers:write"
 )
 
 // AllPermissions is the complete set of permissions.
@@ -62,6 +64,7 @@ var AllPermissions = []string{
 	PermScheduledJobsRead, PermScheduledJobsWrite,
 	PermAgentVersionsRead, PermAgentVersionsWrite,
 	PermUpdatePoliciesRead, PermUpdatePoliciesWrite,
+	PermInstallersRead, PermInstallersWrite,
 }
 
 // Predefined role permission sets per FEATURE_REQUIREMENTS.md.
@@ -88,6 +91,7 @@ var (
 		PermScheduledJobsRead, PermScheduledJobsWrite,
 		PermAgentVersionsRead, PermAgentVersionsWrite,
 		PermUpdatePoliciesRead, PermUpdatePoliciesWrite,
+		PermInstallersRead, PermInstallersWrite,
 	}
 
 	OperatorPermissions = []string{
@@ -105,6 +109,7 @@ var (
 		PermScheduledJobsRead, PermScheduledJobsWrite,
 		PermAgentVersionsRead, PermAgentVersionsWrite,
 		PermUpdatePoliciesRead, PermUpdatePoliciesWrite,
+		PermInstallersRead, PermInstallersWrite,
 	}
 
 	TechnicianPermissions = []string{

@@ -1,0 +1,26 @@
+[Unit]
+Description=Moebius Device Management Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=moebius-agent
+Group=moebius-agent
+ExecStart=/usr/local/bin/moebius-agent run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=30s
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/moebius-agent /var/log/moebius-agent /run/moebius-agent /etc/moebius-agent
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

@@ -654,7 +654,7 @@ Per `LOCAL_UI_CLI_SPEC.md`:
 
 ## Phase 16 — Installer & Packaging
 
-- [ ] **16.1** Linux install script (`install.sh`)
+- [x] **16.1** Linux install script (`install.sh`)
 Per `INSTALLER_PACKAGING_SPEC.md`:
 - Detect init system (require systemd)
 - Create `agent:agent` system user/group
@@ -665,11 +665,11 @@ Per `INSTALLER_PACKAGING_SPEC.md`:
 - `systemctl daemon-reload && systemctl enable --now agent`
 - Wait 30s for first check-in, report result
 
-- [ ] **16.2** Linux uninstall
+- [x] **16.2** Linux uninstall
 - `agent uninstall` — soft: stop service, remove binary + unit file, retain config/certs
 - `agent uninstall --purge` — also remove `/etc/moebius-agent/`, `/var/lib/moebius-agent/`, `/var/log/moebius-agent/`
 
-- [ ] **16.3** Windows MSI installer (WiX v4)
+- [x] **16.3** Windows MSI installer (WiX v4)
 Per `INSTALLER_PACKAGING_SPEC.md`:
 - Package binary, service registration, custom install actions
 - MSI flags: `ENROLLMENT_TOKEN`, `SERVER_URL`, `CDM_ENABLED`
@@ -677,11 +677,11 @@ Per `INSTALLER_PACKAGING_SPEC.md`:
 - Install CA cert into Local Machine\Root store
 - Register + start Windows Service (automatic, restart on failure)
 
-- [ ] **16.4** Windows uninstall
+- [x] **16.4** Windows uninstall
 - Soft: `msiexec /x ... /quiet` — remove binary + service, retain ProgramData
 - Purge: `msiexec /x ... /quiet PURGE=1` — also remove ProgramData + CA cert from store
 
-- [ ] **16.5** Install script endpoint
+- [x] **16.5** Install script endpoint
 `GET /v1/install/{os}/{arch}?token=<enrollment_token>` per `INSTALLER_PACKAGING_SPEC.md`:
 - Return shell script (Linux) or PowerShell script (Windows) that:
   - Downloads latest stable installer
@@ -689,7 +689,7 @@ Per `INSTALLER_PACKAGING_SPEC.md`:
   - Runs installer with enrollment token embedded (not in CLI args)
 - `POST /v1/enrollment-tokens/{token_id}/install-command` — generate one-liner
 
-- [ ] **16.6** Installer hosting endpoints
+- [x] **16.6** Installer hosting endpoints
 - `GET /v1/installers` — list available installers
 - `GET /v1/installers/{os}/{arch}/{version}` — download specific
 - `GET /v1/installers/{os}/{arch}/latest` — download latest stable
@@ -697,7 +697,7 @@ Per `INSTALLER_PACKAGING_SPEC.md`:
 - `GET /v1/installers/{os}/{arch}/{version}/signature` — Ed25519 sig
 - `POST /v1/installers` — upload new installer (admin)
 
-- [ ] **16.7** Setuid helper binary
+- [x] **16.7** Setuid helper binary
 Per `INSTALLER_PACKAGING_SPEC.md` security note:
 - Minimal binary for package manager invocations (apt, dnf)
 - Setuid root, called by the non-root agent process

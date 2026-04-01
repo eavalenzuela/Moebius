@@ -78,6 +78,44 @@ func (s *EnrollmentService) CreateToken(ctx context.Context, tenantID, createdBy
 	return &CreateTokenResult{Token: token, Raw: raw}, nil
 }
 
+// Peek checks that a raw token is valid (exists, not used, not expired)
+// without consuming it. Used by the install script endpoint to validate
+// the token before generating a script — the token is consumed later
+// during actual agent enrollment.
+func (s *EnrollmentService) Peek(ctx context.Context, rawToken string) (*models.EnrollmentToken, error) {
+	hash := hashToken(rawToken)
+	now := time.Now().UTC()
+
+	var token models.EnrollmentToken
+	var scopeJSON []byte
+
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, tenant_id, token_hash, created_by, scope, used_at, expires_at, created_at
+		 FROM enrollment_tokens
+		 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2`,
+		hash, now,
+	).Scan(
+		&token.ID, &token.TenantID, &token.TokenHash, &token.CreatedBy,
+		&scopeJSON, &token.UsedAt, &token.ExpiresAt, &token.CreatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("enrollment token invalid, already used, or expired")
+		}
+		return nil, fmt.Errorf("peek enrollment token: %w", err)
+	}
+
+	if scopeJSON != nil {
+		var scope models.APIScope
+		if err := json.Unmarshal(scopeJSON, &scope); err != nil {
+			return nil, fmt.Errorf("unmarshal token scope: %w", err)
+		}
+		token.Scope = &scope
+	}
+
+	return &token, nil
+}
+
 // ValidateAndConsume checks that a raw token is valid (exists, not used,
 // not expired) and atomically marks it as used. Returns the token on success.
 func (s *EnrollmentService) ValidateAndConsume(ctx context.Context, rawToken string) (*models.EnrollmentToken, error) {

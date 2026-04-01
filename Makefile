@@ -62,6 +62,34 @@ build-pkg-helper-linux-amd64:
 build-pkg-helper-linux-arm64:
 	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-pkg-helper-linux-arm64 ./agent/cmd/pkg-helper
 
+# ─── Installer packaging ───────────────────────────────
+
+.PHONY: build-msi
+build-msi: build-agent-windows-amd64 ## Build Windows MSI installer (requires WiX v4 + PowerShell)
+	powershell.exe -NoProfile -ExecutionPolicy Bypass -File agent/installer/wix/build.ps1 -Version $(VERSION) -BinaryPath $(DIST)/moebius-agent-windows-amd64.exe -OutputDir $(DIST)
+
+.PHONY: build-tarball-linux-amd64
+build-tarball-linux-amd64: build-agent-linux-amd64 build-pkg-helper-linux-amd64 ## Package Linux amd64 tarball
+	@mkdir -p $(DIST)/tarball-linux-amd64
+	cp $(DIST)/moebius-agent-linux-amd64 $(DIST)/tarball-linux-amd64/moebius-agent
+	cp $(DIST)/moebius-pkg-helper-linux-amd64 $(DIST)/tarball-linux-amd64/moebius-pkg-helper
+	cp deploy/install.sh deploy/uninstall.sh deploy/moebius-agent.service $(DIST)/tarball-linux-amd64/
+	cd $(DIST) && tar czf agent-linux-amd64-$(VERSION).tar.gz -C tarball-linux-amd64 .
+	rm -rf $(DIST)/tarball-linux-amd64
+
+.PHONY: build-tarball-linux-arm64
+build-tarball-linux-arm64: build-agent-linux-arm64 build-pkg-helper-linux-arm64 ## Package Linux arm64 tarball
+	@mkdir -p $(DIST)/tarball-linux-arm64
+	cp $(DIST)/moebius-agent-linux-arm64 $(DIST)/tarball-linux-arm64/moebius-agent
+	cp $(DIST)/moebius-pkg-helper-linux-arm64 $(DIST)/tarball-linux-arm64/moebius-pkg-helper
+	cp deploy/install.sh deploy/uninstall.sh deploy/moebius-agent.service $(DIST)/tarball-linux-arm64/
+	cd $(DIST) && tar czf agent-linux-arm64-$(VERSION).tar.gz -C tarball-linux-arm64 .
+	rm -rf $(DIST)/tarball-linux-arm64
+
+.PHONY: dist
+dist: build-tarball-linux-amd64 build-tarball-linux-arm64 ## Build all release artifacts (Linux tarballs; MSI requires Windows)
+	@echo "Linux tarballs built. Run 'make build-msi' on Windows for MSI."
+
 # ─── Cross-compile server ───────────────────────────────
 
 .PHONY: build-server-all

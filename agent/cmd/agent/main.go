@@ -17,6 +17,7 @@ import (
 	agentconfig "github.com/eavalenzuela/Moebius/agent/config"
 	"github.com/eavalenzuela/Moebius/agent/enrollment"
 	"github.com/eavalenzuela/Moebius/agent/executor"
+	"github.com/eavalenzuela/Moebius/agent/installer"
 	"github.com/eavalenzuela/Moebius/agent/inventory"
 	"github.com/eavalenzuela/Moebius/agent/ipc"
 	"github.com/eavalenzuela/Moebius/agent/localaudit"
@@ -68,9 +69,19 @@ func main() {
 			return cli.RunLogs(tail)
 		})
 	case "install":
-		fmt.Println("TODO: agent install")
+		runInstall()
 	case "uninstall":
-		fmt.Println("TODO: agent uninstall")
+		purge := false
+		for _, arg := range os.Args[2:] {
+			if arg == "--purge" {
+				purge = true
+			}
+		}
+		plat := detectPlatform()
+		if err := installer.Uninstall(plat, purge); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	case "verify":
 		fmt.Println("TODO: signature verification")
 	default:
@@ -402,6 +413,50 @@ func tryReadAgentID(path string) (string, bool) {
 		return "", false
 	}
 	return id, true
+}
+
+func runInstall() {
+	var enrollmentToken, serverURL, caCertPath string
+	var cdmEnabled bool
+
+	args := os.Args[2:]
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--enrollment-token":
+			if i+1 < len(args) {
+				enrollmentToken = args[i+1]
+				i++
+			}
+		case "--server-url":
+			if i+1 < len(args) {
+				serverURL = args[i+1]
+				i++
+			}
+		case "--ca-cert":
+			if i+1 < len(args) {
+				caCertPath = args[i+1]
+				i++
+			}
+		case "--cdm-enabled":
+			cdmEnabled = true
+		default:
+			fmt.Fprintf(os.Stderr, "unknown install option: %s\n", args[i])
+			fmt.Fprintln(os.Stderr, `Usage: moebius-agent install [options]
+
+Options:
+  --enrollment-token <token>   Enrollment token (required for new install)
+  --server-url <url>           Server URL (required for new install)
+  --ca-cert <path>             Path to CA certificate file
+  --cdm-enabled                Enable CDM at install time`)
+			os.Exit(1)
+		}
+	}
+
+	plat := detectPlatform()
+	if err := installer.Install(plat, enrollmentToken, serverURL, caCertPath, cdmEnabled); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func usage() {
