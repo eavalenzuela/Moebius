@@ -19,6 +19,7 @@ type Platform interface {
 	AgentIDPath() string         // agent_id (persisted agent ID)
 	CDMStatePath() string        // cdm.json (CDM state persistence)
 	CDMAuditLogPath() string     // cdm-audit.log (CDM local audit)
+	LocalAuditLogPath() string   // local-audit.log (full local interface audit)
 	DropDir() string             // file transfer drop directory
 
 	// Agent update paths

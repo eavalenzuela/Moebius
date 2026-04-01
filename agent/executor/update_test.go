@@ -46,7 +46,10 @@ func (p *mockPlatform) BinaryPreviousPath() string {
 	return filepath.Join(p.dir, "moebius-agent.previous")
 }
 func (p *mockPlatform) PendingUpdatePath() string { return filepath.Join(p.dir, "pending_update.json") }
-func (p *mockPlatform) ServiceName() string       { return "test-agent" }
+func (p *mockPlatform) LocalAuditLogPath() string {
+	return filepath.Join(p.dir, "local-audit.log")
+}
+func (p *mockPlatform) ServiceName() string { return "test-agent" }
 
 func TestExecuteAgentUpdate_InvalidPayload(t *testing.T) {
 	e := &Executor{log: slog.Default()}

@@ -610,19 +610,19 @@ Per `REST_API_SPEC.md`:
 
 ## Phase 15 — Agent Local Interfaces
 
-- [ ] **15.1** Local IPC transport
+- [x] **15.1** Local IPC transport
 Per `LOCAL_UI_CLI_SPEC.md`:
 - Linux: Unix socket at `/run/agent/agent.sock` (mode `0660`, group `agent-users`)
 - Windows: named pipe `\\.\pipe\agent` (ACL: SYSTEM + Administrators)
 - Internal request/response protocol over socket/pipe (JSON-RPC or similar)
 
-- [ ] **15.2** Local authentication
+- [x] **15.2** Local authentication
 Per `LOCAL_UI_CLI_SPEC.md`:
 - Linux: PAM authentication via `go-pam`
 - Windows: `LogonUser()` via `advapi32.dll` syscall
 - On success, issue short-lived session token (CLI: 15 min idle-refreshed; Web: 30 min idle / 8hr absolute)
 
-- [ ] **15.3** Local web UI server (`agent/localui/`)
+- [x] **15.3** Local web UI server (`agent/localui/`)
 Per `LOCAL_UI_CLI_SPEC.md`:
 - Bind to `127.0.0.1:57000` only (configurable port)
 - HTTPS mandatory — TLS with per-device local CA
@@ -633,7 +633,7 @@ Per `LOCAL_UI_CLI_SPEC.md`:
 - Serve login page, status page, CDM management UI
 - Static embedded frontend (Go `embed`)
 
-- [ ] **15.4** Local CLI commands (`agent/localcli/`)
+- [x] **15.4** Local CLI commands (`agent/localcli/`)
 Per `LOCAL_UI_CLI_SPEC.md` and `INSTALLER_PACKAGING_SPEC.md` CLI reference:
 - `agent status` — agent status, version, config
 - `agent cdm status` — CDM state, pending jobs
@@ -644,7 +644,7 @@ Per `LOCAL_UI_CLI_SPEC.md` and `INSTALLER_PACKAGING_SPEC.md` CLI reference:
 - `agent version`
 - All commands authenticate via socket/pipe using OS credentials or cached session token
 
-- [ ] **15.5** Local audit logging
+- [x] **15.5** Local audit logging
 Per `LOCAL_UI_CLI_SPEC.md`:
 - Write to local file (root/SYSTEM only readable)
 - Events: auth success/failure, CDM toggle, CDM session grant/revoke, config view

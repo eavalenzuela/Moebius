@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moebius Agent</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Moebius Agent</h1>
+        </header>
+
+        <!-- Login -->
+        <div id="login-view" class="view">
+            <h2>Sign In</h2>
+            <form id="login-form">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+                <button type="submit">Sign In</button>
+                <p id="login-error" class="error" hidden></p>
+            </form>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard-view" class="view" hidden>
+            <nav>
+                <button class="tab active" data-tab="status">Status</button>
+                <button class="tab" data-tab="cdm">CDM</button>
+                <button class="tab" data-tab="audit">Audit Log</button>
+                <button id="logout-btn" class="tab-right">Sign Out</button>
+            </nav>
+
+            <!-- Status Tab -->
+            <div id="tab-status" class="tab-content">
+                <h2>Agent Status</h2>
+                <table id="status-table">
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- CDM Tab -->
+            <div id="tab-cdm" class="tab-content" hidden>
+                <h2>Customer Device Mode</h2>
+                <div id="cdm-status"></div>
+                <div id="cdm-actions">
+                    <div id="cdm-toggle">
+                        <button id="cdm-enable-btn" class="btn-primary">Enable CDM</button>
+                        <button id="cdm-disable-btn" class="btn-danger">Disable CDM</button>
+                    </div>
+                    <div id="cdm-session" hidden>
+                        <h3>Grant Access Session</h3>
+                        <div class="inline-form">
+                            <select id="grant-duration">
+                                <option value="5m">5 minutes</option>
+                                <option value="10m" selected>10 minutes</option>
+                                <option value="30m">30 minutes</option>
+                                <option value="1h">1 hour</option>
+                                <option value="4h">4 hours</option>
+                            </select>
+                            <button id="cdm-grant-btn" class="btn-primary">Grant</button>
+                        </div>
+                        <button id="cdm-revoke-btn" class="btn-danger" hidden>Revoke Session</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audit Tab -->
+            <div id="tab-audit" class="tab-content" hidden>
+                <h2>CDM Audit Log</h2>
+                <table id="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Action</th>
+                            <th>User</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -17,6 +18,11 @@ import (
 	"github.com/eavalenzuela/Moebius/agent/enrollment"
 	"github.com/eavalenzuela/Moebius/agent/executor"
 	"github.com/eavalenzuela/Moebius/agent/inventory"
+	"github.com/eavalenzuela/Moebius/agent/ipc"
+	"github.com/eavalenzuela/Moebius/agent/localaudit"
+	"github.com/eavalenzuela/Moebius/agent/localauth"
+	"github.com/eavalenzuela/Moebius/agent/localcli"
+	"github.com/eavalenzuela/Moebius/agent/localui"
 	"github.com/eavalenzuela/Moebius/agent/logshipper"
 	"github.com/eavalenzuela/Moebius/agent/platform"
 	linuxplatform "github.com/eavalenzuela/Moebius/agent/platform/linux"
@@ -43,22 +49,115 @@ func main() {
 	case "version":
 		fmt.Println("moebius-agent", version.FullVersion())
 	case "status":
-		fmt.Println("TODO: show agent status")
+		runCLI(func(cli *localcli.CLI) error {
+			return cli.RunStatus()
+		})
 	case "cdm":
-		fmt.Println("TODO: CDM management")
+		runCDMCommand()
+	case "logs":
+		runCLI(func(cli *localcli.CLI) error {
+			tail := 50
+			args := os.Args[2:]
+			for i := 0; i < len(args)-1; i++ {
+				if args[i] == "--tail" {
+					if n, err := strconv.Atoi(args[i+1]); err == nil {
+						tail = n
+					}
+				}
+			}
+			return cli.RunLogs(tail)
+		})
 	case "install":
 		fmt.Println("TODO: agent install")
 	case "uninstall":
 		fmt.Println("TODO: agent uninstall")
 	case "verify":
 		fmt.Println("TODO: signature verification")
-	case "logs":
-		fmt.Println("TODO: show agent logs")
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
 		os.Exit(1)
 	}
+}
+
+// runCDMCommand handles "agent cdm <subcommand>".
+func runCDMCommand() {
+	if len(os.Args) < 3 {
+		fmt.Fprintln(os.Stderr, `Usage: moebius-agent cdm <subcommand>
+
+Subcommands:
+  status    Show CDM state
+  enable    Enable CDM
+  disable   Disable CDM
+  grant     Grant CDM session (--duration <duration>)
+  revoke    Revoke CDM session`)
+		os.Exit(1)
+	}
+
+	sub := os.Args[2]
+	switch sub {
+	case "status":
+		runCLI(func(cli *localcli.CLI) error {
+			return cli.RunCDMStatus()
+		})
+	case "enable":
+		runCLI(func(cli *localcli.CLI) error {
+			return cli.RunCDMEnable(cliUsername())
+		})
+	case "disable":
+		runCLI(func(cli *localcli.CLI) error {
+			return cli.RunCDMDisable(cliUsername())
+		})
+	case "grant":
+		duration := "10m"
+		args := os.Args[3:]
+		for i := 0; i < len(args)-1; i++ {
+			if args[i] == "--duration" {
+				duration = args[i+1]
+			}
+		}
+		runCLI(func(cli *localcli.CLI) error {
+			return cli.RunCDMGrant(cliUsername(), duration)
+		})
+	case "revoke":
+		runCLI(func(cli *localcli.CLI) error {
+			return cli.RunCDMRevoke(cliUsername())
+		})
+	default:
+		fmt.Fprintf(os.Stderr, "unknown cdm subcommand: %s\n", sub)
+		os.Exit(1)
+	}
+}
+
+// runCLI connects to the agent daemon, authenticates, and runs fn.
+func runCLI(fn func(*localcli.CLI) error) {
+	plat := detectPlatform()
+	cli := localcli.New(plat.SocketPath())
+	defer cli.Close()
+
+	// Authenticate with the daemon.
+	username := os.Getenv("MOEBIUS_USERNAME")
+	password := os.Getenv("MOEBIUS_PASSWORD")
+	if err := cli.Login(username, password); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := fn(cli); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// cliUsername returns the OS username from env or current user.
+func cliUsername() string {
+	if u := os.Getenv("MOEBIUS_USERNAME"); u != "" {
+		return u
+	}
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	return "unknown"
 }
 
 func runDaemon() error {
@@ -173,6 +272,29 @@ func runDaemon() error {
 		}
 	}
 
+	// --- Local audit log ---
+	audit := localaudit.New(plat.LocalAuditLogPath())
+
+	// --- IPC server for local CLI ---
+	auth := localauth.NewPlatformAuthenticator()
+	sessions := localauth.NewSessionManager()
+	router := ipc.NewRouter()
+
+	// Register auth methods (login does not require a token).
+	localauth.RegisterIPC(router, auth, sessions, audit)
+
+	// Register CLI methods (require a valid session token).
+	requireAuth := localcli.RequireAuthMiddleware(sessions)
+	localcli.RegisterIPC(router, &localcli.DaemonState{
+		AgentID:    agentID,
+		Config:     cfg,
+		CDMManager: cdmMgr,
+		AuditLog:   audit,
+		LogFile:    cfg.Logging.File,
+	}, requireAuth)
+
+	ipcServer := ipc.NewServer(plat.SocketPath(), router, log)
+
 	// Start poller with executor and inventory
 	inv := inventory.New(log)
 	exec := executor.New(cfg.Server.URL, client, inv, cdmMgr, plat.DropDir(), log)
@@ -196,6 +318,50 @@ func runDaemon() error {
 
 	// Start log shipper goroutine
 	go shipper.Run(ctx)
+
+	// Start IPC server
+	go func() {
+		if err := ipcServer.Serve(ctx); err != nil {
+			log.Error("IPC server error", slog.String("error", err.Error()))
+		}
+	}()
+
+	// Start local web UI (if enabled)
+	if cfg.LocalUI.Enabled {
+		uiServer := localui.NewServer(
+			localui.ServerConfig{
+				Port:    cfg.LocalUI.Port,
+				DataDir: plat.DataDir(),
+				LogDir:  plat.LogDir(),
+			},
+			auth,
+			sessions,
+			cdmMgr,
+			audit,
+			log,
+			agentID,
+			cfg.Server.URL,
+		)
+		go func() {
+			if err := uiServer.Serve(ctx); err != nil {
+				log.Error("local web UI error", slog.String("error", err.Error()))
+			}
+		}()
+	}
+
+	// Periodic session cleanup
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				sessions.Cleanup()
+			}
+		}
+	}()
 
 	// Feed CDM state to poller for check-in reporting
 	go func() {

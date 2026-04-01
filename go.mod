@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
@@ -14,6 +15,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.1 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
+	github.com/msteinert/pam/v2 v2.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/nats.go v1.50.0 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
