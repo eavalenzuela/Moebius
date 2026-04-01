@@ -34,17 +34,17 @@ func Uninstall(plat platform.Platform, purge bool) error {
 
 	// Step 3: Remove agent binaries and setuid helper.
 	fmt.Println("Removing binaries...")
-	removeIfExists(plat.BinaryPath())                   //nolint:errcheck
-	removeIfExists(plat.BinaryPreviousPath())           //nolint:errcheck
-	removeIfExists(plat.BinaryStagingPath())            //nolint:errcheck
-	removeIfExists("/usr/local/bin/moebius-pkg-helper") //nolint:errcheck
+	_ = removeIfExists(plat.BinaryPath())
+	_ = removeIfExists(plat.BinaryPreviousPath())
+	_ = removeIfExists(plat.BinaryStagingPath())
+	_ = removeIfExists("/usr/local/bin/moebius-pkg-helper")
 
 	// Step 4: Remove Unix socket.
-	removeIfExists(plat.SocketPath()) //nolint:errcheck
+	_ = removeIfExists(plat.SocketPath())
 
 	// Step 5: Remove runtime directory.
 	if dir := plat.RuntimeDir(); dir != "" {
-		removeIfExists(dir) //nolint:errcheck
+		_ = removeIfExists(dir)
 	}
 
 	// Step 6: Remove system user and group.

@@ -109,7 +109,7 @@ func (h *InstallScriptHandler) ServeInstallScript(w http.ResponseWriter, r *http
 	w.Header().Set("Content-Disposition",
 		fmt.Sprintf(`attachment; filename="install-%s-%s.%s"`, targetOS, targetArch, scriptExt(targetOS)))
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, script)
+	_, _ = fmt.Fprint(w, script)
 }
 
 // installCommandRequest is the body for POST /v1/enrollment-tokens/{token_id}/install-command.

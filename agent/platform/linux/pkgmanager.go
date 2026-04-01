@@ -125,7 +125,7 @@ func detectManager() string {
 // BuildNativeArgs returns the native package manager command arguments
 // for a given manager, action, package name, and version.
 // This is used by the setuid helper to construct the actual command.
-func BuildNativeArgs(manager, action, name, version string) (string, []string, error) {
+func BuildNativeArgs(manager, action, name, version string) (binary string, args []string, err error) {
 	switch manager {
 	case "apt":
 		return buildAptArgs(action, name, version)
@@ -136,7 +136,7 @@ func BuildNativeArgs(manager, action, name, version string) (string, []string, e
 	}
 }
 
-func buildAptArgs(action, name, version string) (string, []string, error) {
+func buildAptArgs(action, name, version string) (binary string, args []string, err error) {
 	pkg := name
 	if version != "" {
 		pkg = name + "=" + version
@@ -155,7 +155,7 @@ func buildAptArgs(action, name, version string) (string, []string, error) {
 	}
 }
 
-func buildDnfArgs(action, name, version string) (string, []string, error) {
+func buildDnfArgs(action, name, version string) (binary string, args []string, err error) {
 	pkg := name
 	if version != "" {
 		pkg = name + "-" + version

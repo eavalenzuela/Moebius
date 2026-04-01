@@ -86,7 +86,7 @@ func TestExecuteAgentUpdate_FullFlow(t *testing.T) {
 
 	// Create a "current binary"
 	currentBinary := []byte("old-agent-binary-v1.0")
-	if err := os.WriteFile(plat.BinaryPath(), currentBinary, 0o755); err != nil {
+	if err := os.WriteFile(plat.BinaryPath(), currentBinary, 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
 
@@ -187,7 +187,7 @@ func TestExecuteAgentUpdate_ChecksumMismatch(t *testing.T) {
 	dir := t.TempDir()
 	plat := &mockPlatform{dir: dir}
 
-	if err := os.WriteFile(plat.BinaryPath(), []byte("current"), 0o755); err != nil {
+	if err := os.WriteFile(plat.BinaryPath(), []byte("current"), 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
 
@@ -239,7 +239,7 @@ func TestExecuteAgentRollback_NoPrevious(t *testing.T) {
 	dir := t.TempDir()
 	plat := &mockPlatform{dir: dir}
 
-	if err := os.WriteFile(plat.BinaryPath(), []byte("current"), 0o755); err != nil {
+	if err := os.WriteFile(plat.BinaryPath(), []byte("current"), 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
 
@@ -255,10 +255,10 @@ func TestExecuteAgentRollback_Success(t *testing.T) {
 	dir := t.TempDir()
 	plat := &mockPlatform{dir: dir}
 
-	if err := os.WriteFile(plat.BinaryPath(), []byte("new-bad"), 0o755); err != nil {
+	if err := os.WriteFile(plat.BinaryPath(), []byte("new-bad"), 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(plat.BinaryPreviousPath(), []byte("old-good"), 0o755); err != nil {
+	if err := os.WriteFile(plat.BinaryPreviousPath(), []byte("old-good"), 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
 

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"testing"
@@ -214,7 +215,7 @@ func TestExecute_PackageJobTypes(t *testing.T) {
 	for _, tt := range types {
 		t.Run(tt.jobType, func(t *testing.T) {
 			p, _ := json.Marshal(tt.payload)
-			result := e.execute(nil, protocol.JobDispatch{
+			result := e.execute(context.TODO(), protocol.JobDispatch{
 				JobID:   "test-" + tt.jobType,
 				Type:    tt.jobType,
 				Payload: p,

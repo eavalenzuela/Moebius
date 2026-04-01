@@ -25,7 +25,7 @@ func createListener(path string) (net.Listener, error) {
 	}
 
 	// Set socket permissions: owner+group read/write, no other.
-	if err := os.Chmod(path, 0o660); err != nil {
+	if err := os.Chmod(path, 0o660); err != nil { //nolint:gosec // socket needs group read/write
 		_ = ln.Close()
 		return nil, fmt.Errorf("chmod socket: %w", err)
 	}

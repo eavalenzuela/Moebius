@@ -59,9 +59,7 @@ func setupTestServer(t *testing.T) (*Server, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		if err := srv.Serve(ctx); err != nil {
-			// Expected on shutdown.
-		}
+		_ = srv.Serve(ctx) // error expected on shutdown
 	}()
 
 	// Wait for server to be ready.
@@ -114,7 +112,7 @@ func TestServerLoginLogout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /api/status: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
 	}
@@ -126,7 +124,7 @@ func TestServerLoginLogout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /api/login: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("login status = %d, want 200", resp.StatusCode)
 	}
@@ -138,7 +136,7 @@ func TestServerLoginLogout(t *testing.T) {
 	}
 	var status map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&status)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
@@ -151,7 +149,7 @@ func TestServerLoginLogout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /api/logout: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("logout status = %d, want 200", resp.StatusCode)
 	}
@@ -161,7 +159,7 @@ func TestServerLoginLogout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /api/status (after logout): %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status after logout = %d, want 401", resp.StatusCode)
 	}
@@ -185,7 +183,7 @@ func TestServerBadLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /api/login: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
 	}
@@ -204,14 +202,14 @@ func TestServerCDMFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Enable CDM.
 	resp, err = client.Post(base+"/api/cdm/enable", "application/json", nil)
 	if err != nil {
 		t.Fatalf("enable CDM: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("enable CDM status = %d", resp.StatusCode)
 	}
@@ -223,7 +221,7 @@ func TestServerCDMFlow(t *testing.T) {
 	}
 	var cdmStatus map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&cdmStatus)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if cdmStatus["enabled"] != true {
 		t.Errorf("CDM enabled = %v, want true", cdmStatus["enabled"])
 	}
@@ -234,7 +232,7 @@ func TestServerCDMFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("grant: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("grant status = %d", resp.StatusCode)
 	}
@@ -245,7 +243,7 @@ func TestServerCDMFlow(t *testing.T) {
 		t.Fatalf("get CDM after grant: %v", err)
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&cdmStatus)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if cdmStatus["session_active"] != true {
 		t.Errorf("session_active = %v, want true", cdmStatus["session_active"])
 	}
@@ -255,7 +253,7 @@ func TestServerCDMFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("revoke status = %d", resp.StatusCode)
 	}
@@ -266,7 +264,7 @@ func TestServerCDMFlow(t *testing.T) {
 		t.Fatalf("get CDM after revoke: %v", err)
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&cdmStatus)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if cdmStatus["session_active"] != false {
 		t.Errorf("session_active after revoke = %v, want false", cdmStatus["session_active"])
 	}
@@ -290,7 +288,7 @@ func TestServerStaticFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}

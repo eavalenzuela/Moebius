@@ -32,7 +32,7 @@ func NewClient(path string) (*Client, error) {
 
 // Call invokes a method with the given params and unmarshals the result into
 // dest. If dest is nil the result is discarded.
-func (c *Client) Call(method string, params any, dest any) error {
+func (c *Client) Call(method string, params, dest any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -75,7 +75,7 @@ func (c *Client) Call(method string, params any, dest any) error {
 }
 
 // CallWithToken is like Call but includes a session token in the request.
-func (c *Client) CallWithToken(method string, token string, params any, dest any) error {
+func (c *Client) CallWithToken(method, token string, params, dest any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

@@ -40,7 +40,7 @@ func setupTestDaemon(t *testing.T) (string, context.CancelFunc) {
 
 	// Create log file with some content.
 	logFile := filepath.Join(dir, "agent.log")
-	_ = os.WriteFile(logFile, []byte("line1\nline2\nline3\nline4\nline5\n"), 0o644)
+	_ = os.WriteFile(logFile, []byte("line1\nline2\nline3\nline4\nline5\n"), 0o644) //nolint:gosec // test data
 
 	// CDM setup.
 	cdmAudit := cdm.NewAuditLog(filepath.Join(dir, "cdm-audit.log"))

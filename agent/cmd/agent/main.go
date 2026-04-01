@@ -142,22 +142,23 @@ Subcommands:
 
 // runCLI connects to the agent daemon, authenticates, and runs fn.
 func runCLI(fn func(*localcli.CLI) error) {
+	if err := doRunCLI(fn); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func doRunCLI(fn func(*localcli.CLI) error) error {
 	plat := detectPlatform()
 	cli := localcli.New(plat.SocketPath())
 	defer cli.Close()
 
-	// Authenticate with the daemon.
 	username := os.Getenv("MOEBIUS_USERNAME")
 	password := os.Getenv("MOEBIUS_PASSWORD")
 	if err := cli.Login(username, password); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
-
-	if err := fn(cli); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+	return fn(cli)
 }
 
 // cliUsername returns the OS username from env or current user.

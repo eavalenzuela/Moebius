@@ -50,8 +50,8 @@ func InstallCATrustStore(caCertPath string) error {
 
 // RemoveCATrustStore removes the CA certificate from the system trust store.
 func RemoveCATrustStore() error {
-	debianPath := filepath.Join("/usr/local/share/ca-certificates", certFileName)
-	rhelPath := filepath.Join("/etc/pki/ca-trust/source/anchors", certFileName)
+	debianPath := "/usr/local/share/ca-certificates/" + certFileName
+	rhelPath := "/etc/pki/ca-trust/source/anchors/" + certFileName
 
 	removed := false
 	if err := os.Remove(debianPath); err == nil {

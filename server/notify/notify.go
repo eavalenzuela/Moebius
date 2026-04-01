@@ -94,7 +94,7 @@ func (n *Notifier) sendWebhook(ctx context.Context, url string, payload AlertPay
 		n.log.Warn("webhook delivery failed", slog.String("url", url), slog.String("error", err.Error()))
 		return
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
 		n.log.Warn("webhook non-2xx response", slog.String("url", url), slog.Int("status", resp.StatusCode))

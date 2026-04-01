@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// HandlerFunc processes an IPC request and returns a result to be JSON-marshalled,
+// HandlerFunc processes an IPC request and returns a result to be JSON-marshaled,
 // or an error. The context carries the connection lifetime.
 type HandlerFunc func(ctx context.Context, params json.RawMessage) (any, error)
 

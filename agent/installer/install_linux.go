@@ -140,7 +140,7 @@ func Install(plat platform.Platform, enrollmentToken, serverURL, caCertPath stri
 		fmt.Println("Backing up existing binary...")
 		_ = copyFile(binaryPath, plat.BinaryPreviousPath())
 		_ = runCmd("chown", "root:root", plat.BinaryPreviousPath())
-		_ = os.Chmod(plat.BinaryPreviousPath(), 0o755)
+		_ = os.Chmod(plat.BinaryPreviousPath(), 0o755) //nolint:gosec // binary needs exec permission
 	}
 
 	if selfPath != binaryPath {
@@ -149,7 +149,7 @@ func Install(plat platform.Platform, enrollmentToken, serverURL, caCertPath stri
 			return fmt.Errorf("copy binary: %w", err)
 		}
 		_ = runCmd("chown", "root:root", binaryPath)
-		if err := os.Chmod(binaryPath, 0o755); err != nil {
+		if err := os.Chmod(binaryPath, 0o755); err != nil { //nolint:gosec // binary needs exec permission
 			return fmt.Errorf("chmod binary: %w", err)
 		}
 	}
@@ -168,8 +168,7 @@ func Install(plat platform.Platform, enrollmentToken, serverURL, caCertPath stri
 			fmt.Fprintf(os.Stderr, "warning: copy pkg-helper: %v\n", err)
 		} else {
 			_ = runCmd("chown", "root:root", helperDst)
-			// 4755 = setuid + rwxr-xr-x
-			if err := os.Chmod(helperDst, 0o4755); err != nil {
+			if err := os.Chmod(helperDst, 0o4755); err != nil { //nolint:gosec // setuid helper needs 4755
 				fmt.Fprintf(os.Stderr, "warning: chmod pkg-helper: %v\n", err)
 			}
 		}
@@ -206,7 +205,7 @@ file = "%s/moebius-agent.log"
 enabled = %s
 `, serverURL, dropDir, logDir, cdmStr)
 
-		if err := os.WriteFile(configPath, []byte(config), 0o640); err != nil {
+		if err := os.WriteFile(configPath, []byte(config), 0o640); err != nil { //nolint:gosec // config readable by service group
 			return fmt.Errorf("write config: %w", err)
 		}
 		_ = runCmd("chown", fmt.Sprintf("root:%s", serviceGroup), configPath)
@@ -232,13 +231,13 @@ enabled = %s
 			return fmt.Errorf("copy CA cert: %w", err)
 		}
 		_ = runCmd("chown", fmt.Sprintf("root:%s", serviceGroup), caDestPath)
-		_ = os.Chmod(caDestPath, 0o644)
+		_ = os.Chmod(caDestPath, 0o644) //nolint:gosec // CA cert must be world-readable
 	}
 
 	// Step 7: Install systemd unit file.
 	unitPath := "/etc/systemd/system/" + serviceName + ".service"
 	fmt.Printf("Installing systemd unit file to %s\n", unitPath)
-	if err := os.WriteFile(unitPath, []byte(systemdUnit), 0o644); err != nil {
+	if err := os.WriteFile(unitPath, []byte(systemdUnit), 0o644); err != nil { //nolint:gosec // systemd unit must be world-readable
 		return fmt.Errorf("write unit file: %w", err)
 	}
 
@@ -251,7 +250,7 @@ enabled = %s
 	if upgrade {
 		fmt.Println("Restarting agent service...")
 		// Only restart if already running; otherwise enable + start.
-		if err := exec.Command("systemctl", "is-active", "--quiet", serviceName).Run(); err == nil { //nolint:gosec
+		if err := exec.Command("systemctl", "is-active", "--quiet", serviceName).Run(); err == nil { //nolint:gosec // controlled path
 			if err := runCmd("systemctl", "restart", serviceName); err != nil {
 				return fmt.Errorf("restart service: %w", err)
 			}
@@ -271,7 +270,7 @@ enabled = %s
 	fmt.Println("Waiting for agent to start (up to 30s)...")
 	started := false
 	for i := 0; i < 30; i++ {
-		if exec.Command("systemctl", "is-active", "--quiet", serviceName).Run() == nil { //nolint:gosec
+		if exec.Command("systemctl", "is-active", "--quiet", serviceName).Run() == nil { //nolint:gosec // controlled path
 			started = true
 			break
 		}
@@ -289,14 +288,14 @@ enabled = %s
 	agentIDPath := plat.AgentIDPath()
 	for i := 0; i < 30; i++ {
 		if _, err := os.Stat(agentIDPath); err == nil {
-			id, _ := os.ReadFile(agentIDPath)
+			id, _ := os.ReadFile(agentIDPath) //nolint:gosec // known path
 			fmt.Printf("Installation successful! Agent ID: %s\n", strings.TrimSpace(string(id)))
 			fmt.Printf("Service:  systemctl status %s\n", serviceName)
 			fmt.Printf("Logs:     journalctl -u %s -f\n", serviceName)
 			return nil
 		}
 		// Check service didn't crash.
-		if exec.Command("systemctl", "is-active", "--quiet", serviceName).Run() != nil { //nolint:gosec
+		if exec.Command("systemctl", "is-active", "--quiet", serviceName).Run() != nil { //nolint:gosec // controlled path
 			fmt.Fprintln(os.Stderr, "Agent service stopped unexpectedly.")
 			fmt.Fprintf(os.Stderr, "Check logs: journalctl -u %s --no-pager -n 50\n", serviceName)
 			return nil

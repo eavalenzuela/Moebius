@@ -15,11 +15,11 @@ func runCmd(name string, args ...string) error {
 
 // copyFile copies src to dst atomically-ish (read all, write all).
 func copyFile(src, dst string) error {
-	data, err := os.ReadFile(src)
+	data, err := os.ReadFile(src) //nolint:gosec // installer copies known paths
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0o644)
+	return os.WriteFile(dst, data, 0o644) //nolint:gosec // binary needs to be world-readable
 }
 
 // removeIfExists removes a file or directory if it exists.

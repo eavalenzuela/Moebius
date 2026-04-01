@@ -15,7 +15,7 @@ func (s *Store) CreateAgentVersion(ctx context.Context, v *models.AgentVersion) 
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback is a no-op after commit
 
 	_, err = tx.Exec(ctx,
 		`INSERT INTO agent_versions (id, version, channel, changelog, created_at)

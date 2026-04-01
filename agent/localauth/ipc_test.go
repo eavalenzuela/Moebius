@@ -1,3 +1,4 @@
+//nolint:gosec // test file with hardcoded test credentials
 package localauth
 
 import (

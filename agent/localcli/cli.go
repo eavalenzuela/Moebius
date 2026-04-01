@@ -83,7 +83,7 @@ func (c *CLI) Login(username, password string) error {
 }
 
 // authedCall makes an authenticated IPC call, including the session token.
-func (c *CLI) authedCall(method string, params any, dest any) error {
+func (c *CLI) authedCall(method string, params, dest any) error {
 	if err := c.connect(); err != nil {
 		return err
 	}

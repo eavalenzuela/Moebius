@@ -265,7 +265,7 @@ func (h *InstallersHandler) Checksum(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	// sha256sum-compatible format: "<hash>  <filename>\n"
-	_, _ = w.Write([]byte(rec.SHA256 + "  " + fname + "\n"))
+	_, _ = w.Write([]byte(rec.SHA256 + "  " + fname + "\n")) //nolint:gosec // text/plain checksum response, not HTML
 }
 
 // Signature handles GET /v1/installers/{os}/{arch}/{version}/signature.

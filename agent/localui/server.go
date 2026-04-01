@@ -113,7 +113,7 @@ func (s *Server) Serve(ctx context.Context) error {
 
 	s.log.Info("local web UI listening", slog.String("addr", "https://"+s.addr))
 
-	go func() {
+	go func() { //nolint:gosec // intentional: need fresh context for graceful shutdown after parent cancel
 		<-ctx.Done()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

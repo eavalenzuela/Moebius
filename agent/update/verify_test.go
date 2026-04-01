@@ -103,10 +103,10 @@ func TestRollback_Success(t *testing.T) {
 	pendingPath := filepath.Join(dir, "pending_update.json")
 
 	// Create "binaries"
-	if err := os.WriteFile(binaryPath, []byte("new-binary"), 0o755); err != nil {
+	if err := os.WriteFile(binaryPath, []byte("new-binary"), 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(previousPath, []byte("old-binary"), 0o755); err != nil {
+	if err := os.WriteFile(previousPath, []byte("old-binary"), 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(pendingPath, []byte("{}"), 0o600); err != nil {
@@ -118,7 +118,7 @@ func TestRollback_Success(t *testing.T) {
 	}
 
 	// Verify binary was restored
-	data, err := os.ReadFile(binaryPath)
+	data, err := os.ReadFile(binaryPath) //nolint:gosec // test code with temp paths
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestRollback_NoPrevious(t *testing.T) {
 	previousPath := filepath.Join(dir, "agent.previous") // doesn't exist
 	pendingPath := filepath.Join(dir, "pending_update.json")
 
-	if err := os.WriteFile(binaryPath, []byte("new"), 0o755); err != nil {
+	if err := os.WriteFile(binaryPath, []byte("new"), 0o755); err != nil { //nolint:gosec // test binary
 		t.Fatal(err)
 	}
 

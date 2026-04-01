@@ -82,7 +82,7 @@ func (s *Store) UpdateRolloutStatus(ctx context.Context, id, status string) erro
 }
 
 // UpdateRolloutBatch increments the batch counters after a batch is dispatched.
-func (s *Store) UpdateRolloutBatch(ctx context.Context, id string, batch int, updatedDevices int, lastBatchAt interface{}) error {
+func (s *Store) UpdateRolloutBatch(ctx context.Context, id string, batch, updatedDevices int, lastBatchAt interface{}) error {
 	_, err := s.pool.Exec(ctx,
 		`UPDATE agent_rollouts SET current_batch = $1, updated_devices = $2, last_batch_at = $3 WHERE id = $4`,
 		batch, updatedDevices, lastBatchAt, id,

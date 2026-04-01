@@ -62,5 +62,5 @@ func run(args []string) error {
 	}
 
 	// Exec into the package manager (replaces this process)
-	return syscall.Exec(binPath, append([]string{binary}, cmdArgs...), env)
+	return syscall.Exec(binPath, append([]string{binary}, cmdArgs...), env) //nolint:gosec // setuid helper with validated inputs
 }
