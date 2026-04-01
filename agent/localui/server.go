@@ -26,9 +26,9 @@ const (
 
 // ServerConfig holds configuration for the local web UI server.
 type ServerConfig struct {
-	Port     int
-	DataDir  string // for local CA storage
-	LogDir   string // for reading agent logs
+	Port    int
+	DataDir string // for local CA storage
+	LogDir  string // for reading agent logs
 }
 
 // Server is the localhost-only HTTPS web UI server.
@@ -42,7 +42,7 @@ type Server struct {
 	log       *slog.Logger
 	agentID   string
 	serverURL string
-	addr      string       // actual listen address (populated after Serve starts)
+	addr      string        // actual listen address (populated after Serve starts)
 	ready     chan struct{} // closed when server is listening
 }
 

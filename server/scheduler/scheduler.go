@@ -289,8 +289,8 @@ func (s *Scheduler) resolveTargets(ctx context.Context, tenantID string, target 
 
 // AlertCondition is the parsed structure from alert_rules.condition JSONB.
 type AlertCondition struct {
-	Type             string          `json:"type"`
-	ThresholdMinutes int             `json:"threshold_minutes"`
+	Type             string            `json:"type"`
+	ThresholdMinutes int               `json:"threshold_minutes"`
 	Scope            *models.JobTarget `json:"scope,omitempty"`
 }
 

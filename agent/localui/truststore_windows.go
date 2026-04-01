@@ -14,22 +14,22 @@ import (
 
 // Windows cert store constants.
 const (
-	certStoreProvSystem       = 10
-	certStoreLocalMachine     = 0x00020000
-	certEncodingX509ASN       = 1
-	certStoreName             = "ROOT"
-	certCloseStoreForceFlag   = 1
-	certStoreAddReplaceExist  = 3
+	certStoreProvSystem      = 10
+	certStoreLocalMachine    = 0x00020000
+	certEncodingX509ASN      = 1
+	certStoreName            = "ROOT"
+	certCloseStoreForceFlag  = 1
+	certStoreAddReplaceExist = 3
 )
 
 var (
-	crypt32                     = windows.NewLazySystemDLL("crypt32.dll")
-	procCertOpenStore           = crypt32.NewProc("CertOpenStore")
+	crypt32                       = windows.NewLazySystemDLL("crypt32.dll")
+	procCertOpenStore             = crypt32.NewProc("CertOpenStore")
 	procCertAddEncodedCertToStore = crypt32.NewProc("CertAddEncodedCertificateToStore")
-	procCertCloseStore          = crypt32.NewProc("CertCloseStore")
-	procCertFindCertInStore     = crypt32.NewProc("CertFindCertificateInStore")
-	procCertDeleteCertFromStore = crypt32.NewProc("CertDeleteCertificateFromStore")
-	procCertFreeCertCtx         = crypt32.NewProc("CertFreeCertificateContext")
+	procCertCloseStore            = crypt32.NewProc("CertCloseStore")
+	procCertFindCertInStore       = crypt32.NewProc("CertFindCertificateInStore")
+	procCertDeleteCertFromStore   = crypt32.NewProc("CertDeleteCertificateFromStore")
+	procCertFreeCertCtx           = crypt32.NewProc("CertFreeCertificateContext")
 )
 
 // InstallCATrustStore installs the CA certificate into the Windows

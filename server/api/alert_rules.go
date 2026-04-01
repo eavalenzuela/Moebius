@@ -27,10 +27,10 @@ func NewAlertRulesHandler(st *store.Store, auditLog *audit.Logger, log *slog.Log
 }
 
 type createAlertRuleRequest struct {
-	Name      string               `json:"name"`
-	Condition json.RawMessage      `json:"condition"`
+	Name      string                `json:"name"`
+	Condition json.RawMessage       `json:"condition"`
 	Channels  *models.AlertChannels `json:"channels"`
-	Enabled   *bool                `json:"enabled,omitempty"`
+	Enabled   *bool                 `json:"enabled,omitempty"`
 }
 
 // Create handles POST /v1/alert-rules.

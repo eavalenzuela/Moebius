@@ -13,12 +13,12 @@ import (
 
 // Event actions.
 const (
-	ActionAuthSuccess    = "auth.success"
-	ActionAuthFailure    = "auth.failure"
-	ActionCDMToggle      = "cdm.toggle"
-	ActionCDMGrant       = "cdm.session.grant"
-	ActionCDMRevoke      = "cdm.session.revoke"
-	ActionConfigView     = "config.view"
+	ActionAuthSuccess = "auth.success"
+	ActionAuthFailure = "auth.failure"
+	ActionCDMToggle   = "cdm.toggle"
+	ActionCDMGrant    = "cdm.session.grant"
+	ActionCDMRevoke   = "cdm.session.revoke"
+	ActionConfigView  = "config.view"
 )
 
 // Interface sources.

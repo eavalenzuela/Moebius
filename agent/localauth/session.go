@@ -56,9 +56,9 @@ func (sm *SessionManager) Create(username string, st SessionType) (*Session, err
 
 	now := time.Now().UTC()
 	s := &Session{
-		Token:    token,
-		Username: username,
-		Type:     st,
+		Token:     token,
+		Username:  username,
+		Type:      st,
 		CreatedAt: now,
 		LastUsed:  now,
 	}

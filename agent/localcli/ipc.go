@@ -99,7 +99,9 @@ func RegisterIPC(router *ipc.Router, state *DaemonState, requireAuth func(ipc.Ha
 	}))
 
 	router.Handle("cdm.enable", requireAuth(func(_ context.Context, params json.RawMessage) (any, error) {
-		var p struct{ Actor string `json:"actor"` }
+		var p struct {
+			Actor string `json:"actor"`
+		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, &ipc.Error{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}
@@ -113,7 +115,9 @@ func RegisterIPC(router *ipc.Router, state *DaemonState, requireAuth func(ipc.Ha
 	}))
 
 	router.Handle("cdm.disable", requireAuth(func(_ context.Context, params json.RawMessage) (any, error) {
-		var p struct{ Actor string `json:"actor"` }
+		var p struct {
+			Actor string `json:"actor"`
+		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, &ipc.Error{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}
@@ -152,7 +156,9 @@ func RegisterIPC(router *ipc.Router, state *DaemonState, requireAuth func(ipc.Ha
 	}))
 
 	router.Handle("cdm.revoke", requireAuth(func(_ context.Context, params json.RawMessage) (any, error) {
-		var p struct{ Actor string `json:"actor"` }
+		var p struct {
+			Actor string `json:"actor"`
+		}
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, &ipc.Error{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}

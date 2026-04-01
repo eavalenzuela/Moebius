@@ -200,4 +200,3 @@ func isElevated() bool {
 	}
 	return true
 }
-

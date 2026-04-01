@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Install PAM development headers
+        run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
       - uses: golangci/golangci-lint-action@v7
         with:
           version: latest
@@ -30,6 +32,8 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Install PAM development headers
+        run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
       - run: make test-cover
       - name: Upload coverage
         if: github.event_name == 'pull_request'
@@ -65,4 +69,6 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Install PAM development headers
+        run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
       - run: make ${{ matrix.target }}
