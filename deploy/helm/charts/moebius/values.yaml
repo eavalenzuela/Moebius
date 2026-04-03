@@ -1,0 +1,125 @@
+global:
+  imageRegistry: ghcr.io/eavalenzuela
+
+api:
+  replicaCount: 3
+  image:
+    repository: moebius-api
+    tag: ""  # defaults to chart appVersion
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    minAvailable: 2
+  service:
+    type: ClusterIP
+    port: 8080
+  env:
+    HTTP_PORT: "8080"
+    TLS_MODE: passthrough
+    STORAGE_BACKEND: s3
+    LOG_LEVEL: info
+    LOG_FORMAT: json
+
+worker:
+  replicaCount: 3
+  image:
+    repository: moebius-worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    minAvailable: 2
+  env:
+    WORKER_CONCURRENCY: "50"
+    LOG_LEVEL: info
+    LOG_FORMAT: json
+
+scheduler:
+  replicaCount: 2
+  image:
+    repository: moebius-scheduler
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  env:
+    LOG_LEVEL: info
+    LOG_FORMAT: json
+
+nats:
+  external: false
+  externalUrl: ""
+  cluster:
+    enabled: true
+    replicas: 3
+  image:
+    repository: nats
+    tag: "2-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage:
+    size: 10Gi
+    storageClassName: ""
+
+postgres:
+  external: true
+  url: ""  # set via secret
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: manage.example.com
+  tls: true
+  tlsSecretName: moebius-tls
+
+storage:
+  backend: s3
+  s3:
+    endpoint: ""
+    bucket: ""
+    region: ""
+    credentialsSecret: moebius-s3-credentials
+
+secrets:
+  databaseUrl: ""
+  caKeyPath: /certs/intermediate-ca.key
+  caCertPath: /certs/intermediate-ca.crt
+  caSecret: moebius-ca-certs
+
+migrations:
+  enabled: true

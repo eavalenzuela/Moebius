@@ -1,0 +1,48 @@
+# Production / SaaS overrides
+
+api:
+  replicaCount: 5
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 40
+    targetCPUUtilizationPercentage: 60
+  podDisruptionBudget:
+    minAvailable: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 1Gi
+
+worker:
+  replicaCount: 5
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 60
+  podDisruptionBudget:
+    minAvailable: 3
+  env:
+    WORKER_CONCURRENCY: "100"
+
+scheduler:
+  replicaCount: 2
+
+nats:
+  external: false
+  cluster:
+    enabled: true
+    replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  storage:
+    size: 50Gi

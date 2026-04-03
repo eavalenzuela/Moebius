@@ -22,7 +22,7 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed task tracking.
 - [x] **Phase 14** — Scheduling & Alerting
 - [x] **Phase 15** — Agent Local Interfaces
 - [x] **Phase 16** — Installer & Packaging
-- [ ] **Phase 17** — Deployment Configs
-- [ ] **Phase 18** — Web UI (React)
+- [x] **Phase 17** — Deployment Configs
+- [x] **Phase 18** — Web UI (React)
 - [ ] **Phase 19** — Release Pipeline
 - [ ] **Phase 20** — Integration Testing & Hardening

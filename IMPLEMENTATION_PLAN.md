@@ -707,14 +707,14 @@ Per `INSTALLER_PACKAGING_SPEC.md` security note:
 
 ## Phase 17 — Deployment Configs
 
-- [ ] **17.1** PostgreSQL migration framework
+- [x] **17.1** PostgreSQL migration framework
 - Integrate `golang-migrate` (per `SERVER_DEPLOYMENT_SPEC.md`)
 - Freeze `deploy/schema.sql` into `deploy/migrations/0001_initial_schema.sql`
 - Forward-only numbered SQL files in `deploy/migrations/`
 - `migrate` subcommand on the API server binary: `moebius-api migrate`
 - Idempotent — safe to run on every deploy
 
-- [ ] **17.2** Docker Compose deployment
+- [x] **17.2** Docker Compose deployment
 Per `SERVER_DEPLOYMENT_SPEC.md`:
 - `deploy/docker-compose.yml` with services: postgres, nats, api, worker, scheduler, proxy (Caddy)
 - `deploy/.env.example` with required/optional vars
@@ -728,7 +728,7 @@ Per `SERVER_DEPLOYMENT_SPEC.md`:
 - Entrypoint with subcommand support (`migrate`, `generate-ca`, `create-admin`)
 - *(completed in Phase 0)*
 
-- [ ] **17.4** Helm chart
+- [x] **17.4** Helm chart
 Per `SERVER_DEPLOYMENT_SPEC.md` Helm structure:
 - `deploy/helm/charts/moebius/`
 - Templates: api (deployment, service, HPA, PDB), worker (deployment, HPA, PDB), scheduler (deployment), ingress, configmap, secrets, migration job
@@ -739,7 +739,7 @@ Per `SERVER_DEPLOYMENT_SPEC.md` Helm structure:
 - mTLS passthrough for `/v1/agents/*` paths (Option A per spec)
 - Pre-upgrade hook for migrations
 
-- [ ] **17.5** Create-admin command
+- [x] **17.5** Create-admin command
 `moebius-api create-admin --email <email>` per `SERVER_DEPLOYMENT_SPEC.md` startup sequence:
 - Create initial admin user + Super Admin role
 - Generate and print initial API key
@@ -749,33 +749,33 @@ Per `SERVER_DEPLOYMENT_SPEC.md` Helm structure:
 
 ## Phase 18 — Web UI (React)
 
-- [ ] **18.1** UI project scaffolding
+- [x] **18.1** UI project scaffolding
 - `ui/` — React SPA (Vite or similar)
 - Auth: API key or OIDC token against server REST API
 - Routing, layout, auth context
 
-- [ ] **18.2** Device management views
+- [x] **18.2** Device management views
 Per `FEATURE_REQUIREMENTS.md`:
 - Device list: live status, search, filter by group/tag/site/OS, cursor pagination
 - Device detail: inventory (hardware + packages), job history, logs, CDM state
 - Group/tag/site management
 
-- [ ] **18.3** Job management views
+- [x] **18.3** Job management views
 - Job creation: select type, target (devices/groups/tags/sites), payload, retry policy
 - Job monitoring: list with status filters, detail view with result output
 - Cancel/retry actions
 
-- [ ] **18.4** Scheduled job management
+- [x] **18.4** Scheduled job management
 - Create/edit/delete scheduled jobs with cron expression builder
 - Enable/disable toggle
 - Run history
 
-- [ ] **18.5** File transfer UI
+- [x] **18.5** File transfer UI
 - File upload with progress (chunked upload)
 - Create file transfer jobs
 - Transfer status monitoring
 
-- [ ] **18.6** Admin views
+- [x] **18.6** Admin views
 - User management: invite, assign roles, deactivate
 - Role management: create/edit custom roles, permission picker
 - API key management: create (show once), revoke
@@ -784,7 +784,7 @@ Per `FEATURE_REQUIREMENTS.md`:
 - Tenant settings (poll interval, CDM defaults, SSO config)
 - Audit log viewer with filters
 
-- [ ] **18.7** Add Device flow
+- [x] **18.7** Add Device flow
 Per `INSTALLER_PACKAGING_SPEC.md`:
 - Devices → Add Device → Select OS/Arch → generate enrollment token → display one-liner install command
 

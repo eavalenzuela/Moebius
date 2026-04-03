@@ -1,0 +1,97 @@
+services:
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: moebius
+      POSTGRES_USER: moebius
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moebius"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats_data:/data
+
+  api:
+    image: ghcr.io/eavalenzuela/moebius-api:${VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
+      NATS_URL: nats://nats:4222
+      HTTP_PORT: "8080"
+      TLS_MODE: passthrough
+      CA_KEY_PATH: /certs/intermediate-ca.key
+      CA_CERT_PATH: /certs/intermediate-ca.crt
+      STORAGE_BACKEND: local
+      STORAGE_PATH: /data/files
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    volumes:
+      - ./certs:/certs:ro
+      - file_data:/data/files
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  worker:
+    image: ghcr.io/eavalenzuela/moebius-worker:${VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
+      NATS_URL: nats://nats:4222
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+
+  scheduler:
+    image: ghcr.io/eavalenzuela/moebius-scheduler:${VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  nats_data:
+  file_data:
+  caddy_data:
+  caddy_config:
