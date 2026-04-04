@@ -126,37 +126,56 @@ func TestEnrollment_TokenReuse(t *testing.T) {
 
 	token := h.createEnrollmentToken()
 
-	// First enrollment succeeds
-	agentID, _, _ := h.enrollAgent("host-1")
-	if agentID == "" {
-		t.Fatal("first enrollment failed")
+	// First enrollment with this token succeeds
+	agentKey1, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	csrDER1, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+		Subject: pkix.Name{CommonName: "host-1"},
+	}, agentKey1)
+	csrPEM1 := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER1})
+
+	body1 := protocol.EnrollRequest{
+		EnrollmentToken: token,
+		CSR:             string(csrPEM1),
+		Hostname:        "host-1",
+		OS:              "linux",
+		Arch:            "amd64",
+		AgentVersion:    "1.0.0",
+	}
+	b1, _ := json.Marshal(body1)
+	resp1, err := http.Post(h.apiURL+"/v1/agents/enroll", "application/json", bytes.NewReader(b1))
+	if err != nil {
+		t.Fatalf("first enroll: %v", err)
+	}
+	resp1.Body.Close()
+	if resp1.StatusCode != http.StatusOK {
+		t.Fatalf("first enrollment failed: status %d", resp1.StatusCode)
 	}
 
 	// Second enrollment with same token fails
-	agentKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+	agentKey2, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	csrDER2, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
 		Subject: pkix.Name{CommonName: "host-2"},
-	}, agentKey)
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+	}, agentKey2)
+	csrPEM2 := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER2})
 
-	body := protocol.EnrollRequest{
+	body2 := protocol.EnrollRequest{
 		EnrollmentToken: token,
-		CSR:             string(csrPEM),
+		CSR:             string(csrPEM2),
 		Hostname:        "host-2",
 		OS:              "linux",
 		Arch:            "amd64",
 		AgentVersion:    "1.0.0",
 	}
-	b, _ := json.Marshal(body)
-	resp, err := http.Post(h.apiURL+"/v1/agents/enroll", "application/json", bytes.NewReader(b))
+	b2, _ := json.Marshal(body2)
+	resp2, err := http.Post(h.apiURL+"/v1/agents/enroll", "application/json", bytes.NewReader(b2))
 	if err != nil {
-		t.Fatalf("enroll: %v", err)
+		t.Fatalf("second enroll: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp2.Body.Close()
 
-	// Token was already consumed by enrollAgent, so this should fail
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
+	// Token was already consumed, so this should fail
+	if resp2.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", resp2.StatusCode)
 	}
 }
 

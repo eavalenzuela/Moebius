@@ -229,7 +229,7 @@ func TestJobLifecycle_Cancel(t *testing.T) {
 
 	// Cancel it before agent picks it up
 	resp = h.apiRequestWithKey(h.adminKey, "POST", "/v1/jobs/"+jobID+"/cancel", nil)
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, resp, http.StatusNoContent)
 
 	// Verify status
 	var status string
@@ -263,7 +263,7 @@ func TestJobLifecycle_NotDispatchedAfterCancel(t *testing.T) {
 	readJSON(t, resp, &createResp)
 
 	resp = h.apiRequestWithKey(h.adminKey, "POST", "/v1/jobs/"+createResp.JobIDs[0]+"/cancel", nil)
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, resp, http.StatusNoContent)
 
 	// Agent checks in — should receive no jobs
 	h.startMTLSServer()

@@ -34,9 +34,9 @@ func TestMultiTenancy_DeviceIsolation(t *testing.T) {
 	permJSON, _ := json.Marshal([]string{"devices:read", "devices:write", "jobs:read", "jobs:create",
 		"enrollment_tokens:write", "groups:read", "groups:write", "tags:read", "tags:write"})
 	_, _ = h.pool.Exec(ctx,
-		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		role2ID, tenant2ID, "Admin", permJSON, false, now)
+		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		role2ID, tenant2ID, "Admin", permJSON, false)
 
 	user2ID := models.NewUserID()
 	_, _ = h.pool.Exec(ctx,
@@ -121,9 +121,9 @@ func TestMultiTenancy_JobIsolation(t *testing.T) {
 	role2ID := models.NewRoleID()
 	permJSON, _ := json.Marshal([]string{"jobs:read", "jobs:create", "devices:read"})
 	_, _ = h.pool.Exec(ctx,
-		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		role2ID, tenant2ID, "Admin", permJSON, false, now)
+		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		role2ID, tenant2ID, "Admin", permJSON, false)
 	user2ID := models.NewUserID()
 	_, _ = h.pool.Exec(ctx,
 		`INSERT INTO users (id, tenant_id, email, role_id, created_at)

@@ -40,13 +40,14 @@ import (
 
 // testHarness holds shared state for integration tests.
 type testHarness struct {
-	t      *testing.T
-	pool   *pgxpool.Pool
-	store  *store.Store
-	ca     *pki.CA
-	server *httptest.Server
-	apiURL string
-	log    *slog.Logger
+	t          *testing.T
+	pool       *pgxpool.Pool
+	store      *store.Store
+	ca         *pki.CA
+	server     *httptest.Server
+	apiURL     string
+	log        *slog.Logger
+	httpClient *http.Client // client for API requests (TLS-aware after startMTLSServer)
 
 	// Bootstrap data
 	tenantID string
@@ -171,17 +172,18 @@ func newHarness(t *testing.T) *testHarness {
 	t.Cleanup(srv.Close)
 
 	return &testHarness{
-		t:        t,
-		pool:     pool,
-		store:    st,
-		ca:       ca,
-		server:   srv,
-		apiURL:   srv.URL,
-		log:      log,
-		tenantID: tenantID,
-		adminKey: rawKey,
-		userID:   userID,
-		roleID:   roleID,
+		t:          t,
+		pool:       pool,
+		store:      st,
+		ca:         ca,
+		server:     srv,
+		apiURL:     srv.URL,
+		log:        log,
+		httpClient: http.DefaultClient,
+		tenantID:   tenantID,
+		adminKey:   rawKey,
+		userID:     userID,
+		roleID:     roleID,
 	}
 }
 
@@ -233,7 +235,7 @@ func (h *testHarness) apiRequestWithKey(key, method, path string, body any) *htt
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		h.t.Fatalf("send request: %v", err)
 	}
@@ -313,6 +315,17 @@ func (h *testHarness) startMTLSServer() string {
 	h.t.Cleanup(srv.Close)
 	h.server = srv
 	h.apiURL = srv.URL
+
+	// Update httpClient to trust the test CA for API key-authenticated requests
+	h.httpClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:            caPool,
+				InsecureSkipVerify: true, //nolint:gosec // test only
+			},
+		},
+	}
+
 	return srv.URL
 }
 
