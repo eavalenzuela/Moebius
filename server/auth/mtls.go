@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"time"
@@ -80,7 +81,7 @@ func (m *MTLSMiddleware) Handler(next http.Handler) http.Handler {
 			 FROM devices d
 			 JOIN agent_certificates ac ON ac.device_id = d.id
 			 WHERE d.id = $1 AND ac.serial_number = $2`,
-			agentID, cert.SerialNumber.Text(16),
+			agentID, hex.EncodeToString(cert.SerialNumber.Bytes()),
 		).Scan(&tenantID, &deviceStatus, &revokedAt)
 
 		if err != nil {
