@@ -792,11 +792,11 @@ Per `INSTALLER_PACKAGING_SPEC.md`:
 
 ## Phase 19 — Release Pipeline
 
-- [ ] **19.1** GitHub Actions: CI
+- [x] **19.1** GitHub Actions: CI
 - On PR: lint (golangci-lint), unit tests, integration tests (with postgres + nats containers)
 - Go build matrix (all targets) to verify compilation
 
-- [ ] **19.2** GitHub Actions: Release
+- [x] **19.2** GitHub Actions: Release
 Per `INSTALLER_PACKAGING_SPEC.md` pipeline:
 - On tag push (`v*`):
   - Build agent binaries: linux/amd64, linux/arm64, windows/amd64
@@ -808,7 +808,7 @@ Per `INSTALLER_PACKAGING_SPEC.md` pipeline:
   - Create GitHub Release with all artifacts
   - Optionally upload to management server and register as new agent version
 
-- [ ] **19.3** Release signing key
+- [x] **19.3** Release signing key
 - Generate Ed25519 keypair
 - Private key → GitHub Actions secret
 - Public key → `keys/release.pub` in repo + registered as signing key on server
@@ -817,50 +817,50 @@ Per `INSTALLER_PACKAGING_SPEC.md` pipeline:
 
 ## Phase 20 — Integration Testing & Hardening
 
-- [ ] **20.1** End-to-end enrollment test
+- [x] **20.1** End-to-end enrollment test
 - Start server stack (postgres, nats, api, worker, scheduler)
 - Create enrollment token
 - Agent enrolls, receives cert
 - Agent performs first check-in
 - Verify device appears in server with correct inventory
 
-- [ ] **20.2** Job lifecycle end-to-end
+- [x] **20.2** Job lifecycle end-to-end
 - Create exec job targeting enrolled device
 - Agent receives job on next check-in, acknowledges, executes
 - Verify job result appears in server
 - Test retry flow: job fails, retries per policy
 - Test cancellation
 
-- [ ] **20.3** CDM end-to-end
+- [x] **20.3** CDM end-to-end
 - Enable CDM on device, verify jobs go to CDM_HOLD
 - Grant session, verify jobs dispatch
 - Revoke session, verify new jobs held
 - Session expiry
 
-- [ ] **20.4** File transfer end-to-end
+- [x] **20.4** File transfer end-to-end
 - Upload file via chunked API
 - Create file_transfer job
 - Agent downloads, verifies, stores in drop directory
 - Test on_complete command execution
 
-- [ ] **20.5** Agent update end-to-end
+- [x] **20.5** Agent update end-to-end
 - Publish new agent version
 - Trigger manual update job
 - Agent downloads, verifies, stages, restarts
 - Post-restart verification succeeds
 - Test rollback on version mismatch
 
-- [ ] **20.6** Certificate lifecycle
+- [x] **20.6** Certificate lifecycle
 - Agent cert renewal before expiry
 - Agent behavior on revocation (re-enrollment flow)
 - Expired cert handling
 
-- [ ] **20.7** Multi-tenancy isolation
+- [x] **20.7** Multi-tenancy isolation
 - Create two tenants
 - Verify no cross-tenant data access through API
 - Verify tenant-scoped queries return correct results
 
-- [ ] **20.8** RBAC enforcement
+- [x] **20.8** RBAC enforcement
 - Test each predefined role against all endpoints
 - Verify scope restrictions (group/tag/site) filter results correctly
 - Test custom roles with partial permissions

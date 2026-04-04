@@ -24,6 +24,18 @@ jobs:
         with:
           version: latest
 
+  vet:
+    name: Vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Install PAM development headers
+        run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
+      - run: make vet
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -41,6 +53,49 @@ jobs:
         with:
           name: coverage
           path: coverage.txt
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: moebius
+          POSTGRES_PASSWORD: moebius
+          POSTGRES_DB: moebius_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U moebius"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      nats:
+        image: nats:2-alpine
+        ports:
+          - 4222:4222
+        options: >-
+          --health-cmd "true"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      MOEBIUS_DB_HOST: localhost
+      MOEBIUS_DB_PORT: "5432"
+      MOEBIUS_DB_USER: moebius
+      MOEBIUS_DB_PASSWORD: moebius
+      MOEBIUS_DB_NAME: moebius_test
+      MOEBIUS_DB_SSLMODE: disable
+      MOEBIUS_NATS_URL: nats://localhost:4222
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Install PAM development headers
+        run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
+      - run: make test-integration
 
   fmt:
     name: Format check

@@ -1,5 +1,10 @@
 # Binaries
 /dist/
+/api
+/worker
+/scheduler
+/keygen
+/sign
 *.exe
 *.exe~
 *.dll
@@ -39,6 +44,7 @@ docker-compose.override.yml
 keys/*.key
 keys/*.crt
 !keys/release.pub
+release.key
 
 # Node (ui/)
 ui/node_modules/

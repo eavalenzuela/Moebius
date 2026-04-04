@@ -1,0 +1,4 @@
+# Ed25519 release signing public key
+# Generate a real keypair with: go run ./tools/keygen
+# This placeholder must be replaced before signing verification will work.
+PLACEHOLDER — run 'go run ./tools/keygen -out-pub keys/release.pub -out-priv release.key' to generate

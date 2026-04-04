@@ -28,11 +28,17 @@ agent/          # Agent binary: poller, executor, inventory, cdm, localui, local
 server/         # Server: api, auth, rbac, jobs, worker, store, notify
 shared/         # protocol (agent<->server types), models, version
 ui/             # React frontend
-cli/            # Admin CLI (server-side)
 deploy/         # docker-compose.yml, helm/, migrations/
+tools/          # Release signing utilities (keygen, sign)
+tests/          # Integration tests (build tag: integration)
 ```
 
-## Design Specs
+## Documentation
+
+User-facing guides:
+- `docs/Deployment_Instructions.md` — local dev, Docker Compose, Kubernetes/Helm, env vars, upgrades
+- `docs/User_Guide.md` — operator guide: enrollment, devices, jobs, CDM, alerts, RBAC
+- `SECURITY.md` — security architecture and design decisions
 
 Design specs live in `docs/`. Key references when implementing:
 - `docs/HIGH-LEVEL_DESIGN.md` — architecture, component responsibilities, directory layout

@@ -7,9 +7,10 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write # needed for cosign keyless signing
 
 env:
-  DOCKER_REGISTRY: ghcr.io/moebius-oss
+  DOCKER_REGISTRY: ghcr.io/eavalenzuela
 
 jobs:
   build-agent:
@@ -29,9 +30,15 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - name: Install PAM development headers
+        run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
 
       - name: Build agent
         run: make build-agent-${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Build pkg-helper
+        if: matrix.os == 'linux'
+        run: make build-pkg-helper-${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Package (Linux tarball)
         if: matrix.os == 'linux'
@@ -39,33 +46,60 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           ARTIFACT=moebius-agent-${{ matrix.os }}-${{ matrix.arch }}-${VERSION}
           mkdir -p staging
-          cp dist/moebius-agent-${{ matrix.os }}-${{ matrix.arch }} staging/agent
-          # TODO: add install.sh, uninstall.sh, agent.service, README.md
+          cp dist/moebius-agent-${{ matrix.os }}-${{ matrix.arch }} staging/moebius-agent
+          cp dist/moebius-pkg-helper-${{ matrix.os }}-${{ matrix.arch }} staging/moebius-pkg-helper
+          cp deploy/install.sh deploy/uninstall.sh deploy/moebius-agent.service staging/
           tar -czf dist/${ARTIFACT}.tar.gz -C staging .
           sha256sum dist/${ARTIFACT}.tar.gz | awk '{print $1}' > dist/${ARTIFACT}.tar.gz.sha256
-          # TODO: Ed25519 sign with release key
 
-      - name: Package (Windows MSI)
+      - name: Package (Windows)
         if: matrix.os == 'windows'
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           ARTIFACT=moebius-agent-${{ matrix.os }}-${{ matrix.arch }}-${VERSION}
-          sha256sum dist/moebius-agent-${{ matrix.os }}-${{ matrix.arch }}.exe | awk '{print $1}' > dist/${ARTIFACT}.exe.sha256
-          # TODO: build MSI with WiX, sign with Ed25519
+          # Rename binary to standard name for release
+          cp dist/moebius-agent-${{ matrix.os }}-${{ matrix.arch }}.exe dist/${ARTIFACT}.exe
+          sha256sum dist/${ARTIFACT}.exe | awk '{print $1}' > dist/${ARTIFACT}.exe.sha256
+
+      - name: Sign artifacts with Ed25519
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "$RELEASE_SIGNING_KEY" ]; then
+            echo "::warning::RELEASE_SIGNING_KEY not set, skipping artifact signing"
+            exit 0
+          fi
+          VERSION=${GITHUB_REF_NAME#v}
+          ARTIFACT=moebius-agent-${{ matrix.os }}-${{ matrix.arch }}-${VERSION}
+
+          # Write private key to temporary file
+          KEYFILE=$(mktemp)
+          echo "$RELEASE_SIGNING_KEY" | base64 -d > "$KEYFILE"
+          trap "rm -f $KEYFILE" EXIT
+
+          # Sign each release artifact
+          if [ "${{ matrix.os }}" = "linux" ]; then
+            go run ./tools/sign -key "$KEYFILE" -file "dist/${ARTIFACT}.tar.gz" -out "dist/${ARTIFACT}.tar.gz.sig"
+          else
+            go run ./tools/sign -key "$KEYFILE" -file "dist/${ARTIFACT}.exe" -out "dist/${ARTIFACT}.exe.sig"
+          fi
 
       - uses: actions/upload-artifact@v5
         with:
           name: agent-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/*
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/*.tar.gz.sig
+            dist/*.exe
+            dist/*.exe.sha256
+            dist/*.exe.sig
 
   build-server:
     name: Server images
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -76,6 +110,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Build and push images
         run: |
@@ -89,6 +126,19 @@ jobs:
               -t ${DOCKER_REGISTRY}/moebius-${component}:${TAG} \
               -t ${DOCKER_REGISTRY}/moebius-${component}:latest \
               --push .
+          done
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign container images with cosign
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          for component in api worker scheduler; do
+            IMAGE="${DOCKER_REGISTRY}/moebius-${component}"
+            # Get the image digest for signing
+            DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            cosign sign --yes "${IMAGE}@${DIGEST}"
           done
 
   release:
