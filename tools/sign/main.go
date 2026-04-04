@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 func main() {
@@ -35,6 +36,7 @@ func main() {
 
 func run(keyPath, filePath, outPath string) error {
 	// Read private key (raw 64-byte Ed25519 private key)
+	keyPath = filepath.Clean(keyPath)
 	keyBytes, err := os.ReadFile(keyPath)
 	if err != nil {
 		return fmt.Errorf("reading key: %w", err)
@@ -45,15 +47,19 @@ func run(keyPath, filePath, outPath string) error {
 	privKey := ed25519.PrivateKey(keyBytes)
 
 	// Hash the file with SHA-256
+	filePath = filepath.Clean(filePath)
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("opening file: %w", err)
 	}
-	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("hashing file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("closing file: %w", err)
 	}
 	digest := h.Sum(nil)
 
@@ -61,8 +67,9 @@ func run(keyPath, filePath, outPath string) error {
 	sig := ed25519.Sign(privKey, digest)
 
 	// Write base64-encoded signature
+	outPath = filepath.Clean(outPath)
 	encoded := base64.StdEncoding.EncodeToString(sig)
-	if err := os.WriteFile(outPath, []byte(encoded+"\n"), 0644); err != nil {
+	if err := os.WriteFile(outPath, []byte(encoded+"\n"), 0o600); err != nil { //nolint:gosec // CLI tool: output path comes from flag
 		return fmt.Errorf("writing signature: %w", err)
 	}
 

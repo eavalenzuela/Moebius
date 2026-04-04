@@ -42,11 +42,11 @@ func run(outPub, outPriv string) error {
 
 	// Write private key as raw bytes
 	if dir := filepath.Dir(outPriv); dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return fmt.Errorf("creating directory: %w", err)
 		}
 	}
-	if err := os.WriteFile(outPriv, []byte(priv), 0600); err != nil {
+	if err := os.WriteFile(outPriv, []byte(priv), 0o600); err != nil {
 		return fmt.Errorf("writing private key: %w", err)
 	}
 	fmt.Printf("Private key written to: %s\n", outPriv)
@@ -55,12 +55,12 @@ func run(outPub, outPriv string) error {
 
 	// Write public key as base64
 	if dir := filepath.Dir(outPub); dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return fmt.Errorf("creating directory: %w", err)
 		}
 	}
 	encoded := base64.StdEncoding.EncodeToString(pub)
-	if err := os.WriteFile(outPub, []byte(encoded+"\n"), 0644); err != nil {
+	if err := os.WriteFile(outPub, []byte(encoded+"\n"), 0o600); err != nil {
 		return fmt.Errorf("writing public key: %w", err)
 	}
 	fmt.Printf("Public key written to:  %s\n", outPub)

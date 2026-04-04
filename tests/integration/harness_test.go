@@ -117,8 +117,8 @@ func newHarness(t *testing.T) *testHarness {
 
 	permJSON, _ := json.Marshal(rbac.SuperAdminPermissions)
 	_, err = pool.Exec(ctx,
-		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-		roleID, tenantID, "Super Admin", permJSON, false, now)
+		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom) VALUES ($1, $2, $3, $4, $5)`,
+		roleID, tenantID, "Super Admin", permJSON, false)
 	if err != nil {
 		t.Fatalf("create role: %v", err)
 	}
@@ -459,8 +459,8 @@ func (h *testHarness) createAPIKeyWithPerms(name string, perms []string, isAdmin
 	roleID := models.NewRoleID()
 	permJSON, _ := json.Marshal(perms)
 	_, err := h.pool.Exec(ctx,
-		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-		roleID, h.tenantID, name+"-role", permJSON, true, now)
+		`INSERT INTO roles (id, tenant_id, name, permissions, is_custom) VALUES ($1, $2, $3, $4, $5)`,
+		roleID, h.tenantID, name+"-role", permJSON, true)
 	if err != nil {
 		h.t.Fatalf("create role: %v", err)
 	}

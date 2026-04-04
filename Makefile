@@ -118,7 +118,7 @@ test-integration: ## Run integration tests (requires running services)
 
 .PHONY: lint
 lint: ## Run linter
-	golangci-lint run ./...
+	golangci-lint run ./agent/... ./server/... ./shared/... ./tools/... ./tests/...
 
 .PHONY: vet
 vet: ## Run go vet
