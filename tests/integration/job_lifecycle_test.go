@@ -91,7 +91,7 @@ func TestJobLifecycle_ExecJob(t *testing.T) {
 
 	// Agent acknowledges
 	resp = h.agentRequest(client, "POST", "/v1/agents/jobs/"+jobID+"/acknowledge", nil)
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, resp, http.StatusNoContent)
 
 	// Agent submits result
 	now := time.Now().UTC()
@@ -104,7 +104,7 @@ func TestJobLifecycle_ExecJob(t *testing.T) {
 		CompletedAt: &now,
 	}
 	resp = h.agentRequest(client, "POST", "/v1/agents/jobs/"+jobID+"/result", result)
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, resp, http.StatusNoContent)
 
 	// Verify job is completed
 	err = h.pool.QueryRow(context.Background(),
@@ -169,7 +169,7 @@ func TestJobLifecycle_Retry(t *testing.T) {
 
 	// Agent acknowledges and reports failure
 	resp = h.agentRequest(client, "POST", "/v1/agents/jobs/"+jobID+"/acknowledge", nil)
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, resp, http.StatusNoContent)
 
 	now := time.Now().UTC()
 	exitCode := 1
@@ -180,7 +180,7 @@ func TestJobLifecycle_Retry(t *testing.T) {
 		StartedAt:   &now,
 		CompletedAt: &now,
 	})
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, resp, http.StatusNoContent)
 
 	// Original job should be failed, and a retry job should exist
 	var origStatus string

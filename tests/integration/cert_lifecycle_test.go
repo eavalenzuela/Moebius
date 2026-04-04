@@ -3,12 +3,14 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"net/http"
 	"testing"
@@ -176,12 +178,23 @@ func TestCertLifecycle_ExpiredCertRejected(t *testing.T) {
 		Sequence: 1,
 		Status:   protocol.AgentStatus{AgentVersion: "1.0.0"},
 	}
-	resp := h.agentRequest(client, "POST", "/v1/agents/checkin", checkin)
+	b, _ := json.Marshal(checkin)
+	req, err := http.NewRequest("POST", h.apiURL+"/v1/agents/checkin", bytes.NewReader(b))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
 
-	// TLS handshake may fail or mTLS middleware rejects expired cert
-	// Either way, we shouldn't get 200
+	resp, err := client.Do(req)
+	if err != nil {
+		// TLS handshake rejection is the expected outcome for an expired cert
+		t.Logf("request correctly rejected: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// If we somehow got a response, it shouldn't be 200
 	if resp.StatusCode == http.StatusOK {
 		t.Error("expected non-200 for expired cert, got 200")
 	}
-	resp.Body.Close()
 }
