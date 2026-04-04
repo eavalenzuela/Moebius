@@ -307,7 +307,7 @@ func (h *testHarness) startMTLSServer() string {
 	caPool.AddCert(h.ca.Cert)
 
 	srv.TLS = &tls.Config{
-		ClientAuth: tls.RequireAnyClientCert,
+		ClientAuth: tls.VerifyClientCertIfGiven,
 		ClientCAs:  caPool,
 		MinVersion: tls.VersionTLS12,
 	}
