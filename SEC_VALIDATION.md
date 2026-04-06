@@ -389,13 +389,13 @@ For each invariant, fill in the following as work progresses. Kept out of the ma
 
 ### 2.8 Denial of Service & Resource Limits
 
-- [ ] Rate limiting applied in two tiers: **per-tenant** (higher, generous ceiling for legitimate automation) and **per-IP** (much lower, catches brute-force and unauthenticated floods). Both tiers active simultaneously; whichever triggers first wins.
-- [ ] Rate limiting on: enrollment endpoint, login, API key auth attempts, check-in (per-device ceiling separate from per-tenant).
-- [ ] Per-IP limit applies **before** authentication so unauthenticated abuse is shed early.
-- [ ] Per-tenant resource limits: max devices, max jobs in queue, max file size, max API keys.
-- [ ] Agent check-in throttling: malicious agent cannot flood with rapid check-ins.
-- [ ] Long-running jobs: agent enforces per-job timeout.
-- [ ] Regex / parser DoS: any regex compiled from user input? (jobs targeting filter, tag patterns)
+- [x] Rate limiting applied in two tiers: **per-tenant** (higher, generous ceiling for legitimate automation) and **per-IP** (much lower, catches brute-force and unauthenticated floods). Both tiers active simultaneously; whichever triggers first wins. **Evidence:** `server/ratelimit/` — token bucket implementation with `KeyedLimiter`. Per-IP (60 rpm, burst 10) applied globally before auth. Per-tenant (600 rpm, burst 50) applied inside both mTLS and API key route groups. Both active simultaneously. Tests: `TestPerIPMiddleware_*`, `TestPerTenantMiddleware_*`.
+- [x] Rate limiting on: enrollment endpoint, login, API key auth attempts, check-in (per-device ceiling separate from per-tenant). **Evidence:** Per-IP limiter covers enrollment, login, and all endpoints. Per-agent checkin limiter (6 rpm, burst 3) applied specifically to `/v1/agents/checkin` via `r.With()`. Test: `TestPerAgentMiddleware_Blocks`.
+- [x] Per-IP limit applies **before** authentication so unauthenticated abuse is shed early. **Evidence:** `router.go` — `PerIPMiddleware` inserted after `MetricsMiddleware`, before `ProxyCertSanitizer` and all auth middleware. Extracts IP from `r.RemoteAddr`, does not trust `X-Forwarded-For`.
+- [ ] Per-tenant resource limits: max devices, max jobs in queue, max file size, max API keys. **Note:** These are count-based resource limits, not request-rate limits. Separate from rate limiting middleware. Not yet implemented.
+- [x] Agent check-in throttling: malicious agent cannot flood with rapid check-ins. **Evidence:** `PerAgentMiddleware` with `KeyedLimiter` keyed by `auth.AgentIDFromContext`. Default 6 rpm (agents normally check in every 30-60s). Applied to checkin route only. Test: `TestPerAgentMiddleware_Blocks`.
+- [x] Long-running jobs: agent enforces per-job timeout. **Evidence:** `agent/executor/executor.go` uses `context.WithTimeout` for job execution with configurable timeout from job payload.
+- [x] Regex / parser DoS: any regex compiled from user input? (jobs targeting filter, tag patterns) **Evidence:** Static analysis — grep for `regexp.Compile|regexp.MustCompile` in `server/`: no regex compiled from user input. Filter/pagination uses SQL WHERE clauses with parameterized queries, not regex.
 
 ### 2.9 Audit Log Integrity (I10)
 

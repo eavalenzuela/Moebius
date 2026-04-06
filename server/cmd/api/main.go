@@ -24,6 +24,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/logging"
 	"github.com/eavalenzuela/Moebius/server/migrate"
 	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/server/ratelimit"
 	"github.com/eavalenzuela/Moebius/server/rbac"
 	"github.com/eavalenzuela/Moebius/server/storage"
 	"github.com/eavalenzuela/Moebius/server/store"
@@ -92,17 +93,41 @@ func runServer() error {
 	}
 	log.Info("file storage initialized", slog.String("backend", "local"), slog.String("path", cfg.StoragePath))
 
+	// Rate limiters
+	var perIPLimiter, perTenantLimiter, perAgentCheckinLimiter *ratelimit.KeyedLimiter
+	if cfg.RateLimitEnabled {
+		perIPLimiter = ratelimit.NewKeyedLimiter(ratelimit.BucketConfig{
+			Rate:  float64(cfg.RateLimitPerIPRPM) / 60.0,
+			Burst: cfg.RateLimitPerIPBurst,
+		}, 10*time.Minute)
+		perTenantLimiter = ratelimit.NewKeyedLimiter(ratelimit.BucketConfig{
+			Rate:  float64(cfg.RateLimitPerTenantRPM) / 60.0,
+			Burst: cfg.RateLimitPerTenantBurst,
+		}, 1*time.Hour)
+		perAgentCheckinLimiter = ratelimit.NewKeyedLimiter(ratelimit.BucketConfig{
+			Rate:  float64(cfg.RateLimitAgentCheckinRPM) / 60.0,
+			Burst: cfg.RateLimitAgentCheckinBurst,
+		}, 30*time.Minute)
+		log.Info("rate limiting enabled",
+			slog.Int("per_ip_rpm", cfg.RateLimitPerIPRPM),
+			slog.Int("per_tenant_rpm", cfg.RateLimitPerTenantRPM),
+			slog.Int("per_agent_checkin_rpm", cfg.RateLimitAgentCheckinRPM))
+	}
+
 	// Build router
 	router := api.NewRouter(api.RouterConfig{
-		Pool:              st.Pool(),
-		Store:             st,
-		CA:                ca,
-		Audit:             auditLog,
-		Log:               log,
-		Health:            healthHandler,
-		Enrollment:        enrollSvc,
-		Storage:           fileStorage,
-		TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
+		Pool:                   st.Pool(),
+		Store:                  st,
+		CA:                     ca,
+		Audit:                  auditLog,
+		Log:                    log,
+		Health:                 healthHandler,
+		Enrollment:             enrollSvc,
+		Storage:                fileStorage,
+		TrustedProxyCIDRs:      cfg.TrustedProxyCIDRs,
+		PerIPLimiter:           perIPLimiter,
+		PerTenantLimiter:       perTenantLimiter,
+		PerAgentCheckinLimiter: perAgentCheckinLimiter,
 	})
 
 	// Start HTTP(S) server

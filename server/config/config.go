@@ -36,6 +36,15 @@ type Config struct {
 	OIDCClientID      string
 	OIDCClientSecret  string
 
+	// Rate limiting (API server only)
+	RateLimitEnabled           bool
+	RateLimitPerIPRPM          int // requests per minute per IP
+	RateLimitPerIPBurst        int
+	RateLimitPerTenantRPM      int // requests per minute per tenant
+	RateLimitPerTenantBurst    int
+	RateLimitAgentCheckinRPM   int // check-ins per minute per agent
+	RateLimitAgentCheckinBurst int
+
 	// Scheduler only
 	SchedulerTickSeconds       int    // tick interval for cron evaluation
 	ReaperDispatchedTimeoutSec int    // dispatched jobs older than this are requeued
@@ -88,6 +97,13 @@ func Load(proc Process) (*Config, error) {
 		SMTPUsername:               os.Getenv("SMTP_USERNAME"),
 		SMTPPassword:               os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:                   envOrDefault("SMTP_FROM", "moebius@localhost"),
+		RateLimitEnabled:           envOrDefault("RATE_LIMIT_ENABLED", "true") == "true",
+		RateLimitPerIPRPM:          envIntOrDefault("RATE_LIMIT_PER_IP_RPM", 60),
+		RateLimitPerIPBurst:        envIntOrDefault("RATE_LIMIT_PER_IP_BURST", 10),
+		RateLimitPerTenantRPM:      envIntOrDefault("RATE_LIMIT_PER_TENANT_RPM", 600),
+		RateLimitPerTenantBurst:    envIntOrDefault("RATE_LIMIT_PER_TENANT_BURST", 50),
+		RateLimitAgentCheckinRPM:   envIntOrDefault("RATE_LIMIT_AGENT_CHECKIN_RPM", 6),
+		RateLimitAgentCheckinBurst: envIntOrDefault("RATE_LIMIT_AGENT_CHECKIN_BURST", 3),
 	}
 
 	if err := c.validate(proc); err != nil {

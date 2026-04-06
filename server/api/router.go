@@ -13,6 +13,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/auth"
 	"github.com/eavalenzuela/Moebius/server/health"
 	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/server/ratelimit"
 	"github.com/eavalenzuela/Moebius/server/rbac"
 	"github.com/eavalenzuela/Moebius/server/storage"
 	"github.com/eavalenzuela/Moebius/server/store"
@@ -20,15 +21,18 @@ import (
 
 // RouterConfig holds the dependencies needed to build the API router.
 type RouterConfig struct {
-	Pool              *pgxpool.Pool
-	Store             *store.Store
-	CA                *pki.CA
-	Audit             *audit.Logger
-	Log               *slog.Logger
-	Health            *health.Handler
-	Enrollment        *auth.EnrollmentService
-	Storage           storage.Backend
-	TrustedProxyCIDRs string // comma-separated CIDRs; empty disables proxy cert header
+	Pool                   *pgxpool.Pool
+	Store                  *store.Store
+	CA                     *pki.CA
+	Audit                  *audit.Logger
+	Log                    *slog.Logger
+	Health                 *health.Handler
+	Enrollment             *auth.EnrollmentService
+	Storage                storage.Backend
+	TrustedProxyCIDRs      string // comma-separated CIDRs; empty disables proxy cert header
+	PerIPLimiter           *ratelimit.KeyedLimiter
+	PerTenantLimiter       *ratelimit.KeyedLimiter
+	PerAgentCheckinLimiter *ratelimit.KeyedLimiter
 }
 
 // NewRouter creates the fully wired chi router for the API server.
@@ -47,6 +51,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	// Global middleware
 	r.Use(RequestID)
 	r.Use(MetricsMiddleware)
+	if cfg.PerIPLimiter != nil {
+		r.Use(ratelimit.PerIPMiddleware(cfg.PerIPLimiter))
+	}
 
 	// Strip X-Client-Cert from untrusted sources to prevent header spoofing.
 	if cfg.TrustedProxyCIDRs != "" {
@@ -83,11 +90,18 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mtls := auth.NewMTLSMiddleware(cfg.Pool, cfg.Log, caCertPool)
 	r.Route("/v1/agents", func(r chi.Router) {
 		r.Use(mtls.Handler)
+		if cfg.PerTenantLimiter != nil {
+			r.Use(ratelimit.PerTenantMiddleware(cfg.PerTenantLimiter))
+		}
 		renewHandler := NewRenewHandler(cfg.Pool, cfg.CA, cfg.Audit, cfg.Log)
 		r.Post("/renew", renewHandler.ServeHTTP)
 
 		checkinHandler := NewCheckinHandler(cfg.Pool, cfg.Audit, cfg.Log)
-		r.Post("/checkin", checkinHandler.ServeHTTP)
+		if cfg.PerAgentCheckinLimiter != nil {
+			r.With(ratelimit.PerAgentMiddleware(cfg.PerAgentCheckinLimiter)).Post("/checkin", checkinHandler.ServeHTTP)
+		} else {
+			r.Post("/checkin", checkinHandler.ServeHTTP)
+		}
 
 		agentJobs := NewAgentJobsHandler(cfg.Pool, cfg.Audit, cfg.Log)
 		r.Post("/jobs/{job_id}/acknowledge", agentJobs.Acknowledge)
@@ -115,6 +129,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(apiKeyAuth.Handler)
 		r.Use(auth.RequireTenant)
+		if cfg.PerTenantLimiter != nil {
+			r.Use(ratelimit.PerTenantMiddleware(cfg.PerTenantLimiter))
+		}
 
 		// Roles
 		roles := NewRolesHandler(cfg.Store, cfg.Audit)

@@ -54,4 +54,9 @@ var (
 		Help:    "Database query latency.",
 		Buckets: prometheus.ExponentialBuckets(0.001, 2, 12), // 1ms to ~2s
 	}, []string{"query"})
+
+	RateLimitRejections = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "rate_limit_rejections_total",
+		Help: "Total requests rejected by rate limiting.",
+	}, []string{"limiter"})
 )
