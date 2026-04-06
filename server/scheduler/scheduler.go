@@ -24,13 +24,13 @@ var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month 
 // Scheduler evaluates scheduled jobs, alert rules, and reaps stuck jobs on a
 // tick interval. Runs exactly one instance per cluster via PG advisory lock.
 type Scheduler struct {
-	pool               *pgxpool.Pool
-	store              *store.Store
-	notifier           *notify.Notifier
-	log                *slog.Logger
-	tick               time.Duration
-	dispatchedTimeout  time.Duration
-	inflightTimeout    time.Duration
+	pool              *pgxpool.Pool
+	store             *store.Store
+	notifier          *notify.Notifier
+	log               *slog.Logger
+	tick              time.Duration
+	dispatchedTimeout time.Duration
+	inflightTimeout   time.Duration
 }
 
 // Config bundles the knobs for the scheduler.

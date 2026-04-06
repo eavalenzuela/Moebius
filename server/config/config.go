@@ -38,14 +38,14 @@ type Config struct {
 	OIDCClientSecret  string
 
 	// Scheduler only
-	SchedulerTickSeconds        int    // tick interval for cron evaluation
-	ReaperDispatchedTimeoutSec  int    // dispatched jobs older than this are requeued
-	ReaperInflightTimeoutSec    int    // acknowledged/running jobs older than this fail with timed_out
-	SMTPHost                    string // SMTP server host for email alerts
-	SMTPPort                    int
-	SMTPUsername                string
-	SMTPPassword                string
-	SMTPFrom                    string // sender address for alert emails
+	SchedulerTickSeconds       int    // tick interval for cron evaluation
+	ReaperDispatchedTimeoutSec int    // dispatched jobs older than this are requeued
+	ReaperInflightTimeoutSec   int    // acknowledged/running jobs older than this fail with timed_out
+	SMTPHost                   string // SMTP server host for email alerts
+	SMTPPort                   int
+	SMTPUsername               string
+	SMTPPassword               string
+	SMTPFrom                   string // sender address for alert emails
 }
 
 // Process identifies which server binary is loading the config.
@@ -60,36 +60,36 @@ const (
 // required fields based on which process is loading it.
 func Load(proc Process) (*Config, error) {
 	c := &Config{
-		DatabaseURL:          os.Getenv("DATABASE_URL"),
-		NATSURL:              os.Getenv("NATS_URL"),
-		LogLevel:             envOrDefault("LOG_LEVEL", "info"),
-		LogFormat:            envOrDefault("LOG_FORMAT", "json"),
-		TenantMode:           envOrDefault("TENANT_MODE", "multi"),
-		HTTPPort:             envIntOrDefault("HTTP_PORT", 8080),
-		TLSMode:              envOrDefault("TLS_MODE", "passthrough"),
-		TrustedProxyCIDRs:    envOrDefault("TRUSTED_PROXY_CIDRS", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fd00::/8"),
-		TLSCertPath:          os.Getenv("TLS_CERT_PATH"),
-		TLSKeyPath:           os.Getenv("TLS_KEY_PATH"),
-		CACertPath:           os.Getenv("CA_CERT_PATH"),
-		CAKeyPath:            os.Getenv("CA_KEY_PATH"),
-		StorageBackend:       envOrDefault("STORAGE_BACKEND", "local"),
-		StoragePath:          envOrDefault("STORAGE_PATH", "/tmp/moebius-storage"),
-		S3Endpoint:           os.Getenv("S3_ENDPOINT"),
-		S3Bucket:             os.Getenv("S3_BUCKET"),
-		S3Region:             os.Getenv("S3_REGION"),
-		S3AccessKeyID:        os.Getenv("S3_ACCESS_KEY_ID"),
-		S3SecretAccessKey:    os.Getenv("S3_SECRET_ACCESS_KEY"),
-		OIDCIssuerURL:        os.Getenv("OIDC_ISSUER_URL"),
-		OIDCClientID:         os.Getenv("OIDC_CLIENT_ID"),
-		OIDCClientSecret:     os.Getenv("OIDC_CLIENT_SECRET"),
+		DatabaseURL:                os.Getenv("DATABASE_URL"),
+		NATSURL:                    os.Getenv("NATS_URL"),
+		LogLevel:                   envOrDefault("LOG_LEVEL", "info"),
+		LogFormat:                  envOrDefault("LOG_FORMAT", "json"),
+		TenantMode:                 envOrDefault("TENANT_MODE", "multi"),
+		HTTPPort:                   envIntOrDefault("HTTP_PORT", 8080),
+		TLSMode:                    envOrDefault("TLS_MODE", "passthrough"),
+		TrustedProxyCIDRs:          envOrDefault("TRUSTED_PROXY_CIDRS", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fd00::/8"),
+		TLSCertPath:                os.Getenv("TLS_CERT_PATH"),
+		TLSKeyPath:                 os.Getenv("TLS_KEY_PATH"),
+		CACertPath:                 os.Getenv("CA_CERT_PATH"),
+		CAKeyPath:                  os.Getenv("CA_KEY_PATH"),
+		StorageBackend:             envOrDefault("STORAGE_BACKEND", "local"),
+		StoragePath:                envOrDefault("STORAGE_PATH", "/tmp/moebius-storage"),
+		S3Endpoint:                 os.Getenv("S3_ENDPOINT"),
+		S3Bucket:                   os.Getenv("S3_BUCKET"),
+		S3Region:                   os.Getenv("S3_REGION"),
+		S3AccessKeyID:              os.Getenv("S3_ACCESS_KEY_ID"),
+		S3SecretAccessKey:          os.Getenv("S3_SECRET_ACCESS_KEY"),
+		OIDCIssuerURL:              os.Getenv("OIDC_ISSUER_URL"),
+		OIDCClientID:               os.Getenv("OIDC_CLIENT_ID"),
+		OIDCClientSecret:           os.Getenv("OIDC_CLIENT_SECRET"),
 		SchedulerTickSeconds:       envIntOrDefault("SCHEDULER_TICK_SECONDS", 30),
 		ReaperDispatchedTimeoutSec: envIntOrDefault("REAPER_DISPATCHED_TIMEOUT_SECONDS", 300),
 		ReaperInflightTimeoutSec:   envIntOrDefault("REAPER_INFLIGHT_TIMEOUT_SECONDS", 3600),
-		SMTPHost:             os.Getenv("SMTP_HOST"),
-		SMTPPort:             envIntOrDefault("SMTP_PORT", 587),
-		SMTPUsername:         os.Getenv("SMTP_USERNAME"),
-		SMTPPassword:         os.Getenv("SMTP_PASSWORD"),
-		SMTPFrom:             envOrDefault("SMTP_FROM", "moebius@localhost"),
+		SMTPHost:                   os.Getenv("SMTP_HOST"),
+		SMTPPort:                   envIntOrDefault("SMTP_PORT", 587),
+		SMTPUsername:               os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:               os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:                   envOrDefault("SMTP_FROM", "moebius@localhost"),
 	}
 
 	if err := c.validate(proc); err != nil {

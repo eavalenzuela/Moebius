@@ -139,7 +139,7 @@ func TestExecute_InventoryFullType(t *testing.T) {
 // newTestExecutor builds an Executor wired to a counting test server. It
 // returns the executor, a pointer to the atomic request counter, and a
 // teardown func.
-func newTestExecutor(t *testing.T, cdmMgr *cdm.Manager) (*Executor, *int64, func()) {
+func newTestExecutor(t *testing.T, cdmMgr *cdm.Manager) (ex *Executor, hitCount *int64, cleanup func()) {
 	t.Helper()
 	var hits int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
