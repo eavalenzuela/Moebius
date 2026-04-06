@@ -31,7 +31,6 @@ This document covers how to build, deploy, and operate the Moebius platform acro
 **Runtime dependencies:**
 
 - PostgreSQL 16+
-- NATS 2.x with JetStream enabled
 
 **Optional:**
 
@@ -44,17 +43,18 @@ This document covers how to build, deploy, and operate the Moebius platform acro
 
 ## Architecture Overview
 
-Moebius consists of five components:
+Moebius consists of four components:
 
-| Component     | Binary              | Description                                           |
-|---------------|---------------------|-------------------------------------------------------|
-| API Server    | `moebius-api`       | REST API, agent check-in endpoint, RBAC enforcement   |
-| Worker        | `moebius-worker`    | Pulls jobs from NATS, executes, writes results to DB  |
-| Scheduler     | `moebius-scheduler` | Cron evaluation, alert rule checks, SMTP notifications|
-| Agent         | `moebius-agent`     | Runs on managed endpoints, polls server for jobs      |
-| Pkg Helper    | `moebius-pkg-helper`| Setuid helper for package operations on Linux agents  |
+| Component     | Binary              | Description                                                              |
+|---------------|---------------------|--------------------------------------------------------------------------|
+| API Server    | `moebius-api`       | REST API, agent check-in endpoint, RBAC enforcement, inline job dispatch |
+| Scheduler     | `moebius-scheduler` | Cron evaluation, alert rule checks, SMTP notifications, job/token reaper |
+| Agent         | `moebius-agent`     | Runs on managed endpoints, polls server for jobs                         |
+| Pkg Helper    | `moebius-pkg-helper`| Setuid helper for package operations on Linux agents                     |
 
-Supporting infrastructure: PostgreSQL (data), NATS JetStream (job queue), Caddy (TLS proxy in self-hosted mode).
+Supporting infrastructure: PostgreSQL (data), Caddy (TLS proxy in self-hosted mode).
+
+Job dispatch is inline — the API check-in handler hands queued jobs to agents as they poll. There is no message bus. The scheduler runs cron-scheduled jobs, fires alerts, and reaps stuck jobs + expired enrollment tokens.
 
 ---
 
@@ -62,7 +62,7 @@ Supporting infrastructure: PostgreSQL (data), NATS JetStream (job queue), Caddy 
 
 ### 1. Start Infrastructure
 
-Run PostgreSQL and NATS locally. Using Docker:
+Run PostgreSQL locally. Using Docker:
 
 ```bash
 docker run -d --name moebius-postgres \
@@ -71,10 +71,6 @@ docker run -d --name moebius-postgres \
   -e POSTGRES_PASSWORD=devpass \
   -p 5432:5432 \
   postgres:16
-
-docker run -d --name moebius-nats \
-  -p 4222:4222 \
-  nats:2-alpine -js
 ```
 
 ### 2. Build All Binaries
@@ -86,7 +82,6 @@ make build
 
 This produces binaries in `dist/`:
 - `moebius-api`
-- `moebius-worker`
 - `moebius-scheduler`
 - `moebius-agent`
 - `moebius-pkg-helper`
@@ -120,12 +115,11 @@ This prints a one-time API key (`sk_...`). Save it — it cannot be retrieved la
 
 ### 6. Start Server Components
 
-Open three terminals (or use a process manager):
+Open two terminals (or use a process manager):
 
 ```bash
 # Terminal 1 — API Server
 export DATABASE_URL="postgres://moebius:devpass@localhost:5432/moebius?sslmode=disable"
-export NATS_URL="nats://localhost:4222"
 export CA_CERT_PATH="./intermediate-ca.crt"
 export CA_KEY_PATH="./intermediate-ca.key"
 export TLS_MODE=passthrough
@@ -134,15 +128,8 @@ export STORAGE_PATH=/tmp/moebius-files
 export LOG_FORMAT=text
 ./dist/moebius-api
 
-# Terminal 2 — Worker
+# Terminal 2 — Scheduler
 export DATABASE_URL="postgres://moebius:devpass@localhost:5432/moebius?sslmode=disable"
-export NATS_URL="nats://localhost:4222"
-export LOG_FORMAT=text
-./dist/moebius-worker
-
-# Terminal 3 — Scheduler
-export DATABASE_URL="postgres://moebius:devpass@localhost:5432/moebius?sslmode=disable"
-export NATS_URL="nats://localhost:4222"
 export LOG_FORMAT=text
 ./dist/moebius-scheduler
 ```
@@ -164,7 +151,7 @@ make build              # Build all binaries (native)
 make build-agent-all    # Cross-compile agent for linux/{amd64,arm64}, windows/amd64
 make build-server-all   # Cross-compile server for linux/{amd64,arm64}
 make test               # Unit tests with race detector
-make test-integration   # Integration tests (requires postgres + nats)
+make test-integration   # Integration tests (requires postgres)
 make test-cover         # Tests with coverage report
 make lint               # golangci-lint
 make vet                # go vet
@@ -188,7 +175,6 @@ deploy/
 ├── Caddyfile               # Reverse proxy config
 ├── docker/
 │   ├── Dockerfile.api
-│   ├── Dockerfile.worker
 │   └── Dockerfile.scheduler
 └── migrations/             # SQL migration files
 ```
@@ -245,10 +231,8 @@ docker compose up -d
 
 Services started:
 - **postgres** — Database (port 5432, internal only)
-- **nats** — JetStream message queue (internal only)
 - **api** — API server (port 8080, exposed on localhost only)
-- **worker** — Job processor
-- **scheduler** — Cron/alert evaluator
+- **scheduler** — Cron, alert evaluation, and reaper
 - **proxy** — Caddy reverse proxy (ports 80/443, public)
 
 Caddy automatically obtains a TLS certificate from Let's Encrypt for `SERVER_DOMAIN`.
@@ -271,7 +255,6 @@ curl -s https://<SERVER_DOMAIN>/health/ready | jq .
 | Volume          | Purpose                           |
 |-----------------|-----------------------------------|
 | `postgres_data` | PostgreSQL database files         |
-| `nats_data`     | NATS JetStream persistence        |
 | `file_data`     | Uploaded files (agent packages, transfers) |
 | `caddy_data`    | TLS certificates and ACME state   |
 | `caddy_config`  | Caddy runtime config              |
@@ -281,7 +264,7 @@ curl -s https://<SERVER_DOMAIN>/health/ready | jq .
 If you prefer building images from source instead of pulling from GHCR:
 
 ```bash
-make docker-build                     # Build all three images
+make docker-build                     # Build all images (api, scheduler)
 make docker-build DOCKER_TAG=v1.2.3   # With custom tag
 ```
 
@@ -289,7 +272,7 @@ make docker-build DOCKER_TAG=v1.2.3   # With custom tag
 
 ## Kubernetes / Helm (SaaS)
 
-The Helm chart deploys the API, worker, and scheduler with autoscaling, PDBs, and ingress.
+The Helm chart deploys the API and scheduler with autoscaling, PDBs, and ingress.
 
 ### Prerequisites
 
@@ -317,14 +300,8 @@ deploy/helm/charts/moebius/
     │   ├── service.yaml
     │   ├── hpa.yaml
     │   └── pdb.yaml
-    ├── worker/
-    │   ├── deployment.yaml
-    │   ├── hpa.yaml
-    │   └── pdb.yaml
     ├── scheduler/
     │   └── deployment.yaml
-    ├── nats/
-    │   └── statefulset.yaml
     └── migrations/
         └── job.yaml             # Pre-upgrade hook
 ```
@@ -365,8 +342,6 @@ storage:
 secrets:
   databaseUrl: ""  # loaded from moebius-db secret
 
-nats:
-  external: false  # use internal NATS cluster
 ```
 
 ### 3. Install
@@ -406,9 +381,7 @@ Production defaults (`values.production.yaml`):
 | Component | Replicas | Autoscaling   | CPU        | Memory       |
 |-----------|----------|---------------|------------|--------------|
 | API       | 5        | 5–40, 60% CPU | 500m–2000m | 512Mi–1Gi    |
-| Worker    | 5        | 5–100, 60% CPU| 500m–2000m | 512Mi–1Gi    |
 | Scheduler | 2        | —             | 100m–500m  | 128Mi–256Mi  |
-| NATS      | 3        | —             | 500m–2000m | 512Mi–2Gi    |
 
 ### Verify
 
@@ -550,9 +523,9 @@ Defined in `.github/workflows/ci.yml`. Runs on every PR and push to `main`:
 | `lint`        | golangci-lint                                                  |
 | `vet`         | `go vet ./...`                                                 |
 | `test`        | Unit tests with race detector and coverage                     |
-| `integration` | Integration tests with PostgreSQL 16 and NATS service containers|
+| `integration` | Integration tests with PostgreSQL 16 service container         |
 | `fmt`         | `gofmt` formatting check                                      |
-| `build`       | Build matrix: api, worker, scheduler, agent (linux/amd64, linux/arm64, windows/amd64) |
+| `build`       | Build matrix: api, scheduler, agent (linux/amd64, linux/arm64, windows/amd64) |
 
 ### Release — Tag Pushes
 
@@ -566,8 +539,8 @@ Defined in `.github/workflows/release.yml`. Triggered by pushing a tag matching 
 5. Upload artifacts
 
 **Server image job:**
-1. Build multi-arch Docker images (linux/amd64 + linux/arm64) for api, worker, scheduler
-2. Push to `ghcr.io/eavalenzuela/moebius-{api,worker,scheduler}:{version}`
+1. Build multi-arch Docker images (linux/amd64 + linux/arm64) for api, scheduler
+2. Push to `ghcr.io/eavalenzuela/moebius-{api,scheduler}:{version}`
 3. Tag `latest`
 4. Sign images with cosign (keyless OIDC)
 
@@ -635,7 +608,6 @@ Migrations are forward-only in production. The `schema_migrations` table tracks 
 | Variable       | Required | Default | Description                          |
 |----------------|----------|---------|--------------------------------------|
 | `DATABASE_URL` | Yes      | —       | PostgreSQL connection string         |
-| `NATS_URL`     | Worker/Scheduler | — | NATS server URL                   |
 | `LOG_LEVEL`    | No       | `info`  | `debug`, `info`, `warn`, `error`     |
 | `LOG_FORMAT`   | No       | `json`  | `json` or `text`                     |
 | `TENANT_MODE`  | No       | `multi` | `single` or `multi`                  |
@@ -650,6 +622,7 @@ Migrations are forward-only in production. The `schema_migrations` table tracks 
 | `TLS_KEY_PATH`      | If direct| —             | TLS key path (direct mode only)            |
 | `CA_CERT_PATH`      | Yes      | —             | Intermediate CA certificate for agent mTLS |
 | `CA_KEY_PATH`       | Yes      | —             | Intermediate CA private key                |
+| `TRUSTED_PROXY_CIDRS`| No      | Private nets  | CIDRs trusted to forward `X-Client-Cert`  |
 | `STORAGE_BACKEND`   | No       | `local`       | `local` or `s3`                            |
 | `STORAGE_PATH`      | If local | `/tmp/moebius-storage` | Local file storage directory     |
 | `S3_ENDPOINT`       | If s3    | —             | S3-compatible endpoint URL                 |
@@ -661,19 +634,15 @@ Migrations are forward-only in production. The `schema_migrations` table tracks 
 | `OIDC_CLIENT_ID`    | No       | —             | OIDC client ID                             |
 | `OIDC_CLIENT_SECRET`| No       | —             | OIDC client secret                         |
 
-### Worker
-
-| Variable             | Required | Default | Description              |
-|----------------------|----------|---------|--------------------------|
-| `WORKER_CONCURRENCY` | No       | `20`    | Max concurrent job handlers |
-
 ### Scheduler
 
-| Variable                | Required | Default           | Description                     |
-|-------------------------|----------|-------------------|---------------------------------|
-| `SCHEDULER_TICK_SECONDS`| No       | `30`              | Cron evaluation interval        |
-| `SMTP_HOST`             | No       | —                 | SMTP server for alert emails    |
-| `SMTP_PORT`             | No       | `587`             | SMTP port                       |
+| Variable                            | Required | Default | Description                                                          |
+|-------------------------------------|----------|---------|----------------------------------------------------------------------|
+| `SCHEDULER_TICK_SECONDS`            | No       | `30`    | Cron/reaper evaluation interval                                      |
+| `REAPER_DISPATCHED_TIMEOUT_SECONDS` | No       | `300`   | Dispatched jobs older than this are requeued                         |
+| `REAPER_INFLIGHT_TIMEOUT_SECONDS`   | No       | `3600`  | Acknowledged/running jobs older than this are marked `timed_out`     |
+| `SMTP_HOST`                         | No       | —       | SMTP server for alert emails                                         |
+| `SMTP_PORT`                         | No       | `587`   | SMTP port                                                            |
 | `SMTP_USERNAME`         | No       | —                 | SMTP auth username              |
 | `SMTP_PASSWORD`         | No       | —                 | SMTP auth password              |
 | `SMTP_FROM`             | No       | `moebius@localhost`| Sender address for alerts      |
@@ -732,12 +701,10 @@ curl http://localhost:8080/health/ready
 ```bash
 # Docker Compose
 docker compose logs -f api
-docker compose logs -f worker
 docker compose logs -f scheduler
 
 # Kubernetes
 kubectl logs -f deploy/moebius-api -n moebius
-kubectl logs -f deploy/moebius-worker -n moebius
 kubectl logs -f deploy/moebius-scheduler -n moebius
 
 # Agent (Linux)
@@ -755,10 +722,6 @@ Run `generate-ca` first. See steps above for your deployment method.
 - Verify the enrollment token is valid and hasn't expired
 - Check that the agent can reach the server URL
 - If using a custom CA, pass `--ca-cert` to the install script
-
-**NATS connection refused**
-- Ensure NATS is running with JetStream enabled (`-js` flag)
-- Check `NATS_URL` is correct and reachable from the server components
 
 **Migrations fail**
 - Verify `DATABASE_URL` is correct and the database is reachable

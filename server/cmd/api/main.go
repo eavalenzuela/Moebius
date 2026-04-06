@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -93,17 +94,18 @@ func runServer() error {
 
 	// Build router
 	router := api.NewRouter(api.RouterConfig{
-		Pool:       st.Pool(),
-		Store:      st,
-		CA:         ca,
-		Audit:      auditLog,
-		Log:        log,
-		Health:     healthHandler,
-		Enrollment: enrollSvc,
-		Storage:    fileStorage,
+		Pool:              st.Pool(),
+		Store:             st,
+		CA:                ca,
+		Audit:             auditLog,
+		Log:               log,
+		Health:            healthHandler,
+		Enrollment:        enrollSvc,
+		Storage:           fileStorage,
+		TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
 	})
 
-	// Start HTTP server
+	// Start HTTP(S) server
 	addr := fmt.Sprintf(":%d", cfg.HTTPPort)
 	srv := &http.Server{
 		Addr:              addr,
@@ -111,11 +113,22 @@ func runServer() error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	if cfg.TLSMode == "direct" {
+		caCertPool := x509.NewCertPool()
+		caCertPool.AddCert(ca.Cert)
+		srv.TLSConfig = auth.NewAgentTLSConfig(caCertPool)
+	}
+
 	// Graceful shutdown
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("API server listening", slog.String("addr", addr), slog.String("version", version.Version))
-		errCh <- srv.ListenAndServe()
+		if cfg.TLSMode == "direct" {
+			log.Info("API server listening (TLS direct)", slog.String("addr", addr), slog.String("version", version.Version))
+			errCh <- srv.ListenAndServeTLS(cfg.TLSCertPath, cfg.TLSKeyPath)
+		} else {
+			log.Info("API server listening", slog.String("addr", addr), slog.String("version", version.Version))
+			errCh <- srv.ListenAndServe()
+		}
 	}()
 
 	sigCh := make(chan os.Signal, 1)

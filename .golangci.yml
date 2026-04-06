@@ -13,6 +13,7 @@ linters:
     - gocritic
     - misspell
     - gosec
+    - depguard
   settings:
     gocritic:
       enabled-tags:
@@ -23,6 +24,19 @@ linters:
       extra-words:
         - typo: "cancelled"
           correction: "cancelled"
+    depguard:
+      rules:
+        agent-no-pprof:
+          # Enforces security invariant I1 (poll-only agents): net/http/pprof
+          # registers handlers on http.DefaultServeMux as an import side effect,
+          # which could expose profiling data via any listener that uses the
+          # default mux. The agent must not accept inbound connections except
+          # for its loopback local UI, so this package is forbidden in agent/.
+          files:
+            - "**/agent/**/*.go"
+          deny:
+            - pkg: "net/http/pprof"
+              desc: "forbidden in agent/: pprof auto-registers on http.DefaultServeMux and could leak debug endpoints via the local UI listener. See SEC_VALIDATION.md invariant I1."
 
 formatters:
   enable:

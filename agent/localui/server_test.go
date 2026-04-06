@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
@@ -295,6 +296,28 @@ func TestServerStaticFiles(t *testing.T) {
 	ct := resp.Header.Get("Content-Type")
 	if ct != "text/html; charset=utf-8" {
 		t.Errorf("Content-Type = %q, want text/html", ct)
+	}
+}
+
+// TestServerBindsLoopbackOnly is a security regression test for invariant I1
+// ("agents never receive inbound connections"). The local UI is one of two
+// intentional listeners on the agent and must remain loopback-only. If someone
+// refactors the hard-coded "127.0.0.1" literal in Serve() into a config knob,
+// this test will fail.
+func TestServerBindsLoopbackOnly(t *testing.T) {
+	srv, cancel := setupTestServer(t)
+	defer cancel()
+
+	host, _, err := net.SplitHostPort(srv.Addr())
+	if err != nil {
+		t.Fatalf("split host:port from %q: %v", srv.Addr(), err)
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		t.Fatalf("bind host %q is not an IP literal; local UI must bind to a loopback IP, not a hostname that could resolve elsewhere", host)
+	}
+	if !ip.IsLoopback() {
+		t.Fatalf("local UI bound to %s (not loopback) — violates invariant I1 (agents must not accept inbound network connections)", ip)
 	}
 }
 

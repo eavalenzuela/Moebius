@@ -21,28 +21,25 @@ The server supports **multi-tenancy** with full data isolation, **role-based acc
                     ┌──────▼───────┐        ┌──────────────┐
   Agents ─────────► │  API Server  │◄──────►│  PostgreSQL  │
   (poll over mTLS)  │  (Go/Chi)   │        │              │
-                    └──────┬───────┘        └──────▲───────┘
-                           │                       │
-                    ┌──────▼───────┐        ┌──────┴───────┐
-                    │     NATS     │◄──────►│   Worker(s)  │
-                    │  JetStream   │        │              │
-                    └──────┬───────┘        └──────────────┘
-                           │
-                    ┌──────▼───────┐
-                    │  Scheduler   │
-                    │  (cron/alerts)│
-                    └──────────────┘
+                    └──────────────┘        └──────▲───────┘
+                                                   │
+                                            ┌──────┴───────┐
+                                            │  Scheduler   │
+                                            │ cron + reaper│
+                                            │ + alerts     │
+                                            └──────────────┘
 ```
 
 **Components:**
 
 | Component | Description |
 |-----------|-------------|
-| **API Server** | REST API with API key + OIDC auth, RBAC enforcement, agent check-in endpoint, job dispatch |
-| **Worker** | Pulls jobs from NATS JetStream, executes, writes results to PostgreSQL |
-| **Scheduler** | Evaluates cron schedules and alert rules, sends notifications |
+| **API Server** | REST API with API key + OIDC auth, RBAC enforcement, agent check-in endpoint, inline job dispatch |
+| **Scheduler** | Leader-elected background process: evaluates cron schedules, fires alert rules, reaps stuck jobs and expired enrollment tokens |
 | **Agent** | Runs on managed endpoints as a system service; polls for jobs, ships inventory and logs |
 | **Web UI** | React SPA for device management, job creation, and monitoring |
+
+Jobs are dispatched inline on agent check-in — no message bus. Phase 6 removed NATS and the separate worker binary; the scheduler absorbs the remaining background responsibilities.
 
 ## Features
 
@@ -78,11 +75,11 @@ docker compose up -d
 ### Build from Source
 
 ```bash
-# Prerequisites: Go 1.25+, libpam0g-dev (Linux), PostgreSQL, NATS
+# Prerequisites: Go 1.25+, libpam0g-dev (Linux), PostgreSQL
 make build                # Build all binaries to dist/
 make test                 # Run unit tests
 make lint                 # Run golangci-lint
-make test-integration     # Integration tests (requires postgres + nats)
+make test-integration     # Integration tests (requires postgres)
 ```
 
 See [Deployment Instructions](docs/Deployment_Instructions.md) for full setup guides covering local development, Docker Compose, and Kubernetes/Helm.
@@ -102,13 +99,13 @@ See [Deployment Instructions](docs/Deployment_Instructions.md) for full setup gu
 | [Agent Update Spec](docs/AGENT_UPDATE_SPEC.md) | Binary update, rollback, version management |
 | [Local UI/CLI Spec](docs/LOCAL_UI_CLI_SPEC.md) | Agent local web UI and CLI |
 | [Installer Packaging Spec](docs/INSTALLER_PACKAGING_SPEC.md) | Agent distribution, MSI/tarball, release signing |
-| [Server Deployment Spec](docs/SERVER_DEPLOYMENT_SPEC.md) | Infrastructure design, NATS streams, observability |
+| [Server Deployment Spec](docs/SERVER_DEPLOYMENT_SPEC.md) | Infrastructure design, observability, env vars |
 
 ## Project Structure
 
 ```
 agent/          # Agent: poller, executor, inventory, CDM, local UI/CLI
-server/         # Server: API, auth, RBAC, jobs, worker, scheduler, store
+server/         # Server: API, auth, RBAC, jobs, scheduler, store
 shared/         # Shared: protocol types, models, version
 ui/             # React frontend (Vite + TypeScript)
 deploy/         # Docker Compose, Helm chart, migrations, install scripts
@@ -123,10 +120,10 @@ tests/          # Integration tests
 make build              # Build all binaries (native)
 make build-agent-all    # Cross-compile agent: linux/{amd64,arm64}, windows/amd64
 make build-server-all   # Cross-compile server: linux/{amd64,arm64}
-make docker-build       # Build Docker images (api, worker, scheduler)
+make docker-build       # Build Docker images (api, scheduler)
 make dist               # Build release tarballs
 make test               # Unit tests with race detector
-make test-integration   # Integration tests (postgres + nats required)
+make test-integration   # Integration tests (postgres required)
 make test-cover         # Tests with coverage report
 make lint               # golangci-lint
 make fmt                # Format code

@@ -115,7 +115,6 @@ jobs:
       matrix:
         target:
           - build-api
-          - build-worker
           - build-scheduler
           - build-agent-linux-amd64
           - build-agent-linux-arm64

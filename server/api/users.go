@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/server/audit"
 	"github.com/eavalenzuela/Moebius/server/auth"
 	"github.com/eavalenzuela/Moebius/server/store"
 	"github.com/eavalenzuela/Moebius/shared/models"
@@ -14,11 +15,12 @@ import (
 // UsersHandler handles /v1/users endpoints.
 type UsersHandler struct {
 	store *store.Store
+	audit *audit.Logger
 }
 
 // NewUsersHandler creates a UsersHandler.
-func NewUsersHandler(s *store.Store) *UsersHandler {
-	return &UsersHandler{store: s}
+func NewUsersHandler(s *store.Store, auditLog *audit.Logger) *UsersHandler {
+	return &UsersHandler{store: s, audit: auditLog}
 }
 
 // List handles GET /v1/users.
@@ -76,6 +78,7 @@ type inviteUserRequest struct {
 // Invite handles POST /v1/users/invite.
 func (h *UsersHandler) Invite(w http.ResponseWriter, r *http.Request) {
 	tenantID := auth.TenantIDFromContext(r.Context())
+	actorID := auth.UserIDFromContext(r.Context())
 
 	var req inviteUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -100,6 +103,14 @@ func (h *UsersHandler) Invite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
+			"user.invite", "user", user.ID, map[string]string{
+				"email":   req.Email,
+				"role_id": req.RoleID,
+			})
+	}
+
 	JSON(w, http.StatusCreated, user)
 }
 
@@ -110,6 +121,7 @@ type updateUserRequest struct {
 // Update handles PATCH /v1/users/{user_id}.
 func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 	tenantID := auth.TenantIDFromContext(r.Context())
+	actorID := auth.UserIDFromContext(r.Context())
 	userID := chi.URLParam(r, "user_id")
 
 	var req updateUserRequest
@@ -127,6 +139,13 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
+			"user.update_role", "user", userID, map[string]string{
+				"role_id": req.RoleID,
+			})
+	}
+
 	user, _ := h.store.GetUser(r.Context(), tenantID, userID)
 	JSON(w, http.StatusOK, user)
 }
@@ -134,11 +153,17 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 // Deactivate handles POST /v1/users/{user_id}/deactivate.
 func (h *UsersHandler) Deactivate(w http.ResponseWriter, r *http.Request) {
 	tenantID := auth.TenantIDFromContext(r.Context())
+	actorID := auth.UserIDFromContext(r.Context())
 	userID := chi.URLParam(r, "user_id")
 
 	if err := h.store.DeactivateUser(r.Context(), tenantID, userID); err != nil {
 		ErrorWithCode(w, http.StatusNotFound, "user_not_found", err.Error())
 		return
+	}
+
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
+			"user.deactivate", "user", userID, nil)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

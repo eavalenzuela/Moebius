@@ -63,6 +63,15 @@ func (h *ScheduledJobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Scope enforcement: validate target overlaps with API key scope
+	if !auth.IsAdminFromContext(r.Context()) {
+		scope := auth.ScopeFromContext(r.Context())
+		if scope != nil && !auth.TargetOverlapsScope(scope, &req.Target) {
+			ErrorWithCode(w, http.StatusForbidden, "scope_violation", "scheduled job target is outside this key's scope")
+			return
+		}
+	}
+
 	// Validate cron expression
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	sched, err := parser.Parse(req.CronExpr)

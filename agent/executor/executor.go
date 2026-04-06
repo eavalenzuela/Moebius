@@ -65,7 +65,14 @@ func (e *Executor) runJob(ctx context.Context, job protocol.JobDispatch) {
 	// CDM gate: if CDM is enabled and no session, don't execute.
 	// The job was already dispatched by the server; it will be requeued
 	// to CDM_HOLD on the next check-in when we report no session.
-	if e.cdm != nil && !e.cdm.CanExecuteJob() {
+	// Fail-closed: a missing CDM manager is treated as hold, not as allow,
+	// to preserve invariant I2 (CDM enforced on agent, server cannot bypass).
+	if e.cdm == nil {
+		e.log.Error("job refused: CDM manager not initialized",
+			slog.String("job_id", job.JobID))
+		return
+	}
+	if !e.cdm.CanExecuteJob() {
 		e.log.Info("job held by CDM (no active session)",
 			slog.String("job_id", job.JobID))
 		return

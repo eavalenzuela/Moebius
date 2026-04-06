@@ -49,7 +49,7 @@ A revoked agent must re-enroll with a new enrollment token to regain access.
 
 ## Authorization (RBAC)
 
-All API authorization is enforced in the API server via middleware. Workers trust that jobs are pre-authorized — they do not re-check permissions.
+All API authorization is enforced in the API server via middleware. The scheduler trusts that rows it operates on (scheduled jobs, alert rules, queued jobs) were pre-authorized at creation time by the API handler that accepted them — it does not re-check permissions. A regression test (`TestScheduler_NoAuthzImports` in `server/cmd/scheduler/main_test.go`) prevents the scheduler from transitively importing `server/rbac`, `server/auth`, or `server/api`.
 
 ### Predefined Roles
 
@@ -69,7 +69,30 @@ API keys with `is_admin=true` bypass all permission checks. This flag is set dur
 
 ### Scope Restrictions
 
-API keys can be scoped to specific groups, tags, sites, or devices. Scoped keys can only access resources within their scope, providing fine-grained access control for automation and third-party integrations.
+API keys can be scoped to specific groups, tags, sites, or devices via the `scope` field:
+
+```json
+{
+  "scope": {
+    "group_ids": ["grp_abc"],
+    "tag_ids": ["tag_xyz"],
+    "site_ids": ["site_123"],
+    "device_ids": ["dev_456"]
+  }
+}
+```
+
+Scope is enforced per-request at the handler level (`server/auth/scope.go`). All scope fields are unioned to produce the set of allowed device IDs. A `nil` scope (unscoped key) has no restriction — equivalent to tenant-wide access. API keys with `is_admin=true` bypass scope checks.
+
+**Enforcement points:**
+- **Devices:** List is filtered to in-scope devices. Get/Update/Revoke return 404 for out-of-scope devices.
+- **Jobs:** Create intersects resolved targets with scope (403 if no overlap). List is filtered. Get/Cancel/Retry check the job's device is in scope.
+- **Inventory:** Device inventory is gated by `DeviceInScope`.
+- **Groups/Tags/Sites:** List is filtered to scoped IDs. Get/Update/Delete check membership. Create is blocked for keys scoped to that resource type. Tag/device operations check `DeviceInScope`.
+- **Scheduled jobs:** Create validates that the target overlaps with the key's scope.
+- **Enrollment tokens:** Create validates that the token's scope is a subset of the key's scope.
+- **Files:** Tenant-wide, not device-scoped. Access gated by job creation (which is scope-checked).
+- **Alert rules:** Tenant-wide monitoring, not device-scoped. No scope enforcement needed.
 
 ## Multi-Tenancy
 
@@ -145,6 +168,10 @@ Agents poll the server at a configurable interval (default 30 seconds). The serv
 ### Audit Logging
 
 All administrative actions are recorded in an append-only audit log table. Each entry includes the actor, action, resource, tenant, and timestamp. The audit log is queryable via the API (with `audit_log:read` permission).
+
+Append-only integrity is enforced at two layers:
+- **Application:** `server/audit/audit.go` only contains INSERT; no UPDATE/DELETE/TRUNCATE exists in the codebase.
+- **Database:** Migration `004_audit_log_immutable.up.sql` adds PostgreSQL rules that silently discard UPDATE and DELETE, and an event trigger that rejects TRUNCATE.
 
 ### Database
 

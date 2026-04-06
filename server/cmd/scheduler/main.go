@@ -61,7 +61,11 @@ func run() error {
 	notifier := notify.New(smtpCfg, log)
 
 	// Create and run scheduler
-	sched := scheduler.New(st.Pool(), st, notifier, log, cfg.SchedulerTickSeconds)
+	sched := scheduler.New(st.Pool(), st, notifier, log, scheduler.Config{
+		TickSeconds:                cfg.SchedulerTickSeconds,
+		ReaperDispatchedTimeoutSec: cfg.ReaperDispatchedTimeoutSec,
+		ReaperInflightTimeoutSec:   cfg.ReaperInflightTimeoutSec,
+	})
 
 	// Handle signals
 	sigCh := make(chan os.Signal, 1)

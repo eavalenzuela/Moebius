@@ -56,6 +56,16 @@ func (h *EnrollmentTokensHandler) Create(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// Scope enforcement: token scope must be a subset of the API key's scope
+	if !auth.IsAdminFromContext(r.Context()) {
+		keyScope := auth.ScopeFromContext(r.Context())
+		if keyScope != nil && !auth.ScopeIsSubset(keyScope, req.Scope) {
+			ErrorWithCode(w, http.StatusForbidden, "scope_violation",
+				"enrollment token scope must be a subset of the API key's scope")
+			return
+		}
+	}
+
 	expiry := 24 * time.Hour
 	if req.ExpiresInSeconds > 0 {
 		expiry = time.Duration(req.ExpiresInSeconds) * time.Second

@@ -73,6 +73,11 @@ func (h *AgentJobsHandler) Acknowledge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.audit != nil {
+		_ = h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
+			"job.acknowledge", "job", jobID, nil)
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -165,6 +170,13 @@ func (h *AgentJobsHandler) SubmitResult(w http.ResponseWriter, r *http.Request) 
 			h.log.Error("failed to process full inventory", slog.String("error", err.Error()))
 			// Non-fatal — the job result is already stored
 		}
+	}
+
+	if h.audit != nil {
+		_ = h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
+			"job.result", "job", jobID, map[string]string{
+				"status": targetStatus,
+			})
 	}
 
 	// Handle auto-retry

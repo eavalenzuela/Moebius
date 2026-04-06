@@ -31,32 +31,9 @@ api:
     LOG_LEVEL: info
     LOG_FORMAT: json
 
-worker:
-  replicaCount: 3
-  image:
-    repository: moebius-worker
-    tag: ""
-    pullPolicy: IfNotPresent
-  resources:
-    requests:
-      cpu: 250m
-      memory: 256Mi
-    limits:
-      cpu: 1000m
-      memory: 512Mi
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 50
-    targetCPUUtilizationPercentage: 70
-  podDisruptionBudget:
-    minAvailable: 2
-  env:
-    WORKER_CONCURRENCY: "50"
-    LOG_LEVEL: info
-    LOG_FORMAT: json
-
 scheduler:
+  # Scheduler uses PG advisory-lock leader election; only one pod does work
+  # at a time. Run 2 for hot-standby failover.
   replicaCount: 2
   image:
     repository: moebius-scheduler
@@ -72,6 +49,8 @@ scheduler:
   env:
     LOG_LEVEL: info
     LOG_FORMAT: json
+    REAPER_DISPATCHED_TIMEOUT_SECONDS: "300"
+    REAPER_INFLIGHT_TIMEOUT_SECONDS: "3600"
 
 nats:
   external: false

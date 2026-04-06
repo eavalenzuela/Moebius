@@ -12,12 +12,13 @@ import (
 
 // DeviceFilters holds optional filters for listing devices.
 type DeviceFilters struct {
-	Status  string
-	GroupID string
-	TagID   string
-	SiteID  string
-	OS      string
-	Search  string
+	Status         string
+	GroupID        string
+	TagID          string
+	SiteID         string
+	OS             string
+	Search         string
+	ScopeDeviceIDs []string // when non-empty, restricts results to these device IDs (scope enforcement)
 }
 
 // ListDevices returns devices for a tenant with optional filters.
@@ -30,6 +31,11 @@ func (s *Store) ListDevices(ctx context.Context, tenantID string, f DeviceFilter
 	args := []any{tenantID}
 	idx := 2
 
+	if len(f.ScopeDeviceIDs) > 0 {
+		query += " AND d.id = ANY($" + strconv.Itoa(idx) + ")"
+		args = append(args, f.ScopeDeviceIDs)
+		idx++
+	}
 	if f.GroupID != "" {
 		query += " AND d.id IN (SELECT device_id FROM device_groups WHERE group_id = $" + strconv.Itoa(idx) + ")"
 		args = append(args, f.GroupID)

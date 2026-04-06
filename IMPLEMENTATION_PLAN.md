@@ -2,6 +2,8 @@
 
 This plan is ordered by dependency. Each phase builds on the prior one. Tasks within a phase can generally be parallelized.
 
+> **Architectural note:** Some task descriptions below reference a separate `worker` binary and NATS JetStream, which were present in the original plan. Phase 6 replaced the NATS-based dispatch model with **inline dispatch on agent check-in** (no message bus) and collapsed the worker's remaining responsibilities (reaping stuck jobs, expiring enrollment tokens) into the leader-elected **scheduler** binary. The server now ships two binaries: `moebius-api` and `moebius-scheduler`. See `docs/HIGH-LEVEL_DESIGN.md` and `docs/SERVER_DEPLOYMENT_SPEC.md` for the current architecture.
+
 ---
 
 ## Phase 0 — Project Scaffolding

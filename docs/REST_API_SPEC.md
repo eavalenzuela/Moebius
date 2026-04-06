@@ -848,6 +848,33 @@ POST /v1/api-keys
 
 Note: `key` is returned **once only** at creation time.
 
+### Scope Enforcement
+
+When an API key has a non-null `scope`, all requests made with that key are restricted to resources within the scope. Scope fields are unioned to produce the set of allowed device IDs:
+
+- `group_ids` → devices in those groups
+- `tag_ids` → devices with those tags
+- `site_ids` → devices at those sites
+- `device_ids` → those specific devices
+
+**Scope behavior by endpoint:**
+
+| Endpoint category | Behavior |
+|---|---|
+| Devices (list, get, update, revoke) | Filtered/gated to in-scope devices. Out-of-scope returns 404. |
+| Jobs (create) | Target devices intersected with scope. 403 if no overlap. |
+| Jobs (list, get, cancel, retry) | Filtered/gated to jobs on in-scope devices. |
+| Inventory | Gated to in-scope devices. |
+| Groups / Tags / Sites | List filtered to scoped IDs. CRUD gated. Create blocked for scoped keys. |
+| Scheduled jobs (create) | Target must overlap with scope. |
+| Enrollment tokens (create) | Token scope must be a subset of key scope. |
+| Files | Tenant-wide, not scope-restricted. |
+| Alert rules | Tenant-wide, not scope-restricted. |
+| Users / Roles / API keys / Tenant | Not scope-restricted (RBAC permissions control access). |
+| Audit log | Tenant-wide, not scope-restricted. |
+
+Keys with `is_admin=true` bypass all scope checks.
+
 ---
 
 ### Revoke API Key

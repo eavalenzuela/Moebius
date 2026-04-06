@@ -21,26 +21,48 @@ const advisoryLockID int64 = 0x4d6f65626975735f // "Moebius_"
 // cronParser uses standard 5-field cron expressions.
 var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
-// Scheduler evaluates scheduled jobs and alert rules on a tick interval.
+// Scheduler evaluates scheduled jobs, alert rules, and reaps stuck jobs on a
+// tick interval. Runs exactly one instance per cluster via PG advisory lock.
 type Scheduler struct {
-	pool     *pgxpool.Pool
-	store    *store.Store
-	notifier *notify.Notifier
-	log      *slog.Logger
-	tick     time.Duration
+	pool               *pgxpool.Pool
+	store              *store.Store
+	notifier           *notify.Notifier
+	log                *slog.Logger
+	tick               time.Duration
+	dispatchedTimeout  time.Duration
+	inflightTimeout    time.Duration
 }
 
-// New creates a Scheduler.
-func New(pool *pgxpool.Pool, st *store.Store, notifier *notify.Notifier, log *slog.Logger, tickSeconds int) *Scheduler {
+// Config bundles the knobs for the scheduler.
+type Config struct {
+	TickSeconds                int
+	ReaperDispatchedTimeoutSec int
+	ReaperInflightTimeoutSec   int
+}
+
+// New creates a Scheduler. dispatchedTimeoutSec and inflightTimeoutSec may be
+// 0 (or negative) to fall back to conservative defaults.
+func New(pool *pgxpool.Pool, st *store.Store, notifier *notify.Notifier, log *slog.Logger, cfg Config) *Scheduler {
+	tickSeconds := cfg.TickSeconds
 	if tickSeconds <= 0 {
 		tickSeconds = 30
 	}
+	dispatchedTimeoutSec := cfg.ReaperDispatchedTimeoutSec
+	if dispatchedTimeoutSec <= 0 {
+		dispatchedTimeoutSec = 300
+	}
+	inflightTimeoutSec := cfg.ReaperInflightTimeoutSec
+	if inflightTimeoutSec <= 0 {
+		inflightTimeoutSec = 3600
+	}
 	return &Scheduler{
-		pool:     pool,
-		store:    st,
-		notifier: notifier,
-		log:      log,
-		tick:     time.Duration(tickSeconds) * time.Second,
+		pool:              pool,
+		store:             st,
+		notifier:          notifier,
+		log:               log,
+		tick:              time.Duration(tickSeconds) * time.Second,
+		dispatchedTimeout: time.Duration(dispatchedTimeoutSec) * time.Second,
+		inflightTimeout:   time.Duration(inflightTimeoutSec) * time.Second,
 	}
 }
 
@@ -100,6 +122,15 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
+// RunTickOnce runs a single tick's worth of scheduled-job evaluation, alert
+// evaluation, and reaping. It is exported so operators (and integration
+// tests) can trigger a tick on demand instead of waiting for the interval.
+// Requires the caller to have ensured leader election is handled — normally
+// this is used from admin tools or tests that already control the scheduler.
+func (s *Scheduler) RunTickOnce(ctx context.Context) {
+	s.runTick(ctx)
+}
+
 func (s *Scheduler) runTick(ctx context.Context) {
 	now := time.Now().UTC()
 
@@ -108,6 +139,81 @@ func (s *Scheduler) runTick(ctx context.Context) {
 
 	// Evaluate alert rules
 	s.evaluateAlertRules(ctx, now)
+
+	// Reap stuck jobs and expired tokens
+	s.reapStuckDispatchedJobs(ctx, now)
+	s.reapStuckInflightJobs(ctx, now)
+	s.reapExpiredEnrollmentTokens(ctx, now)
+}
+
+// reapStuckDispatchedJobs requeues jobs that were dispatched to an agent but
+// never acknowledged within dispatchedTimeout. This handles agents that went
+// offline after the server dispatched a job.
+func (s *Scheduler) reapStuckDispatchedJobs(ctx context.Context, now time.Time) {
+	cutoff := now.Add(-s.dispatchedTimeout)
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE jobs
+		   SET status = $1, dispatched_at = NULL
+		 WHERE status = $2 AND dispatched_at < $3`,
+		models.JobStatusQueued, models.JobStatusDispatched, cutoff,
+	)
+	if err != nil {
+		s.log.Error("reaper: failed to requeue stuck dispatched jobs", slog.String("error", err.Error()))
+		return
+	}
+	if n := tag.RowsAffected(); n > 0 {
+		s.log.Info("reaper: requeued stuck dispatched jobs",
+			slog.Int64("count", n),
+			slog.Duration("timeout", s.dispatchedTimeout),
+		)
+	}
+}
+
+// reapStuckInflightJobs terminates jobs that an agent acknowledged (or
+// reported as running) but never completed within inflightTimeout. The job is
+// moved to timed_out with a synthetic last_error so operators can tell why.
+func (s *Scheduler) reapStuckInflightJobs(ctx context.Context, now time.Time) {
+	cutoff := now.Add(-s.inflightTimeout)
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE jobs
+		   SET status = $1,
+		       completed_at = $2,
+		       last_error = $3
+		 WHERE status IN ($4, $5)
+		   AND COALESCE(started_at, acknowledged_at) < $6`,
+		models.JobStatusTimedOut, now,
+		"reaper: agent never reported completion within inflight timeout",
+		models.JobStatusAcknowledged, models.JobStatusRunning, cutoff,
+	)
+	if err != nil {
+		s.log.Error("reaper: failed to time out in-flight jobs", slog.String("error", err.Error()))
+		return
+	}
+	if n := tag.RowsAffected(); n > 0 {
+		s.log.Info("reaper: timed out in-flight jobs",
+			slog.Int64("count", n),
+			slog.Duration("timeout", s.inflightTimeout),
+		)
+	}
+}
+
+// reapExpiredEnrollmentTokens deletes unused enrollment tokens past their
+// expiry. Used tokens are retained for audit trail (used_at is set).
+func (s *Scheduler) reapExpiredEnrollmentTokens(ctx context.Context, now time.Time) {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM enrollment_tokens
+		  WHERE used_at IS NULL AND expires_at < $1`,
+		now,
+	)
+	if err != nil {
+		s.log.Error("reaper: failed to delete expired enrollment tokens", slog.String("error", err.Error()))
+		return
+	}
+	if n := tag.RowsAffected(); n > 0 {
+		s.log.Info("reaper: deleted expired enrollment tokens",
+			slog.Int64("count", n),
+		)
+	}
 }
 
 func (s *Scheduler) evaluateScheduledJobs(ctx context.Context, now time.Time) {

@@ -13,27 +13,29 @@
 │  - REST API + auth (API keys, OIDC/SSO)             │
 │  - mTLS validation for agent endpoints              │
 │  - RBAC enforcement                                  │
-│  - Job creation → NATS JetStream                     │
+│  - Inline job dispatch (on agent check-in)           │
 │  - Agent check-in + enrollment                       │
 │  - File upload handling                              │
 │  - Tenant management                                 │
-└──────┬─────────────────────┬───────────────────────┘
-       │                     │
-┌──────▼──────┐     ┌────────▼─────────────────────────┐
-│  PostgreSQL  │     │        NATS JetStream             │
-│  - devices   │     │  Streams:                         │
-│  - inventory │     │  - jobs (dispatch, work queue)    │
-│  - jobs      │     │  - results (interest-based)       │
-│  - audit log │     │  - logs (max age 7d)              │
-│  - RBAC      │     └──┬─────────────────────┬─────────┘
-│  - tenants   │        │                     │
-└──────▲───────┘  ┌─────▼──────┐    ┌─────────▼──────────┐
-       │          │  Worker(s)  │    │     Scheduler       │
-       │          │  (Go)       │    │  (Go, single-active │
-       └──────────│  stateless, │    │   via PG advisory   │
-                  │  scalable   │    │   lock)             │
-                  └─────┬──────┘    └──────────────────────┘
-                        │ HTTPS polling
+└──────┬──────────────────────────────────────────────┘
+       │
+┌──────▼─────────────────────────────────────────────┐
+│                   PostgreSQL                         │
+│  devices, inventory, jobs, job_results, audit_log,   │
+│  RBAC, tenants, scheduled_jobs, alert_rules, ...     │
+└──────▲──────────────────────────────────────────────┘
+       │
+┌──────┴──────────────────────────────────┐
+│             Scheduler (Go)               │
+│  - Leader-elected via PG advisory lock   │
+│  - Cron-scheduled job enqueue            │
+│  - Alert-rule evaluation + notifications │
+│  - Reaper: stuck dispatched → requeue    │
+│  - Reaper: stuck in-flight → timed_out   │
+│  - Reaper: expired enrollment tokens     │
+└──────────────────────────────────────────┘
+
+                        ▲ HTTPS polling (poll-only, no inbound to agents)
         ┌───────────────┼───────────────┐
 ┌───────▼──────┐ ┌──────▼──────┐ ┌─────▼───────┐
 │   Agent      │ │   Agent     │ │   Agent     │
@@ -50,38 +52,23 @@
 Single entrypoint for all external traffic (UI, CLI, third-party).
 Authenticates every request (API key or OIDC token for users; mTLS client certificate for agents).
 Enforces RBAC + scope before any data access or job creation.
-Publishes jobs to NATS JetStream; reads results from PostgreSQL.
+Dispatches jobs **inline** during agent check-in — no message bus. The check-in handler picks up to N queued jobs for the checking-in device, applies CDM hold/release, and returns them in the response.
 Serves agent check-in and enrollment endpoints.
-Returns pending jobs to agents on check-in, filtered by CDM state.
 Handles chunked file uploads and download URL generation.
 Subcommands: `migrate`, `generate-ca`, `create-admin`.
 
-#### NATS JetStream
-
-Decouples job creation from job execution.
-Allows multiple workers to scale independently.
-Three streams:
-- `jobs` — work queue semantics (deleted on ack), subjects: `jobs.dispatch.{tenant_id}.{device_id}`
-- `results` — interest-based retention, subjects: `results.{tenant_id}.{job_id}`
-- `logs` — agent log shipping, max age 7 days, subjects: `logs.{tenant_id}.{device_id}`
-
-#### Worker (`server/cmd/worker`)
-
-Consumes jobs from NATS JetStream `jobs` stream.
-Manages the job state machine (QUEUED → DISPATCHED → ACKNOWLEDGED → RUNNING → terminal).
-Handles CDM hold logic: if agent reports CDM enabled with no session, jobs transition to CDM_HOLD.
-Writes job state transitions and results to PostgreSQL.
-Stateless — run as many replicas as needed; NATS handles work distribution.
-Each instance processes jobs concurrently with a configurable goroutine pool.
-
 #### Scheduler (`server/cmd/scheduler`)
 
-Single active instance via PostgreSQL advisory lock (leader election); a second replica can stand by for failover.
-Evaluates cron expressions for scheduled jobs and enqueues them when due.
-Evaluates auto-update policies when new agent versions are published.
-Manages gradual rollout batching for agent updates.
-Monitors device last-seen timestamps and fires alert rules.
-Sends webhook and email notifications.
+Single active instance via PostgreSQL advisory lock (leader election); a second replica can stand by for failover. Absorbs the background work that was previously split across a separate worker binary — Phase 6 collapsed NATS + the worker into inline dispatch + this single scheduler.
+
+Responsibilities per tick (default: 30s):
+- **Scheduled-job evaluation** — walks `scheduled_jobs` rows whose `next_run_at` has passed, resolves targets (devices/groups/tags/sites) to device IDs, and inserts one `queued` job per device. Then advances `last_run_at` / `next_run_at` via the cron expression.
+- **Alert-rule evaluation** — checks `alert_rules` conditions (e.g., device offline > threshold minutes) and fires webhook + email notifications via `server/notify`.
+- **Reaping stuck `dispatched` jobs** — requeues jobs whose `dispatched_at` is older than `REAPER_DISPATCHED_TIMEOUT_SECONDS` (default 300). These are jobs the server handed out on check-in but the agent never acknowledged (usually because the agent went offline mid-poll). Clears `dispatched_at` so the next check-in can re-dispatch.
+- **Reaping stuck in-flight jobs** — transitions `acknowledged`/`running` jobs whose `started_at`/`acknowledged_at` is older than `REAPER_INFLIGHT_TIMEOUT_SECONDS` (default 3600) to `timed_out` with a synthetic `last_error`. Bounds the lifetime of an abandoned job.
+- **Reaping expired enrollment tokens** — deletes unused enrollment tokens past their `expires_at`. Used tokens (those with `used_at` set) are retained for audit.
+
+The scheduler never consults RBAC — it operates on rows whose creation was already authorized through the API. The `server/cmd/scheduler` package has a regression test (`TestScheduler_NoAuthzImports`) that fails if it transitively imports `server/rbac`, `server/auth`, or `server/api`.
 
 #### PostgreSQL
 
@@ -123,13 +110,12 @@ No direct agent or DB access.
 ├── server/
 │   ├── cmd/
 │   │   ├── api/         # API server binary
-│   │   ├── worker/      # worker binary
-│   │   └── scheduler/   # scheduler binary
-│   ├── api/             # REST handlers
+│   │   └── scheduler/   # scheduler binary (cron + reaper + alerts)
+│   ├── api/             # REST handlers (including inline job dispatch)
 │   ├── auth/            # API key + OIDC + mTLS
 │   ├── rbac/            # role + scope enforcement
-│   ├── jobs/            # job lifecycle management
-│   ├── worker/          # job queue consumers
+│   ├── jobs/            # job state-machine (pure functions)
+│   ├── scheduler/       # scheduler logic (cron, reapers, alert eval)
 │   ├── store/           # PostgreSQL data layer
 │   └── notify/          # alerting + webhooks
 ├── shared/
@@ -139,7 +125,7 @@ No direct agent or DB access.
 ├── ui/                  # React frontend
 ├── cli/                 # Admin CLI (server-side)
 ├── deploy/
-│   ├── docker/          # Dockerfiles for api, worker, scheduler
+│   ├── docker/          # Dockerfiles for api, scheduler
 │   ├── docker-compose.yml
 │   ├── helm/            # Kubernetes Helm chart for SaaS deployment
 │   └── migrations/      # PostgreSQL schema migrations (forward-only)
@@ -149,9 +135,10 @@ No direct agent or DB access.
 
 ### Key Design Principles
 
-- API server is the only component with a public network surface — workers, scheduler, DB, and queue are internal only
+- API server is the only component with a public network surface — scheduler and DB are internal only
 - Agents never receive inbound connections — poll-only means no open ports on endpoints
 - CDM is enforced on the agent, not the server — server cannot bypass it even if compromised
-- All RBAC enforcement is in the API server — workers trust that jobs have already been authorized
+- All RBAC enforcement is in the API server — the scheduler trusts rows whose creation was already authorized
 - Tenant isolation at the DB layer — every table with tenant-scoped data carries a `tenant_id` and queries always filter by it
-- Server is three processes (API, worker, scheduler) from the same Go module — deployed in lockstep, same image tag per release
+- Server is two processes (API, scheduler) from the same Go module — deployed in lockstep, same image tag per release
+- Job dispatch is inline (no message bus) — the API check-in handler is the dispatcher; Phase 6 removed NATS for simplicity

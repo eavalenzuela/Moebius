@@ -90,12 +90,12 @@ func (s *Store) UpdateRole(ctx context.Context, tenantID string, role *models.Ro
 
 // DeleteRole deletes a custom role. Fails if assigned to users or API keys.
 func (s *Store) DeleteRole(ctx context.Context, tenantID, roleID string) error {
-	// Check if role is assigned to any users or api keys
+	// Check if role is assigned to any users or api keys within the same tenant
 	var count int
 	err := s.pool.QueryRow(ctx,
-		`SELECT (SELECT count(*) FROM users WHERE role_id = $1) +
-		        (SELECT count(*) FROM api_keys WHERE role_id = $1)`,
-		roleID,
+		`SELECT (SELECT count(*) FROM users WHERE role_id = $1 AND tenant_id = $2) +
+		        (SELECT count(*) FROM api_keys WHERE role_id = $1 AND tenant_id = $2)`,
+		roleID, tenantID,
 	).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("check role usage: %w", err)

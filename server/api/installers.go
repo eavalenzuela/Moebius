@@ -148,19 +148,19 @@ func (h *InstallersHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the referenced file exists.
+	// Verify the referenced file exists and belongs to this tenant.
 	var fileExists bool
 	if err := h.pool.QueryRow(r.Context(),
-		`SELECT EXISTS(SELECT 1 FROM files WHERE id = $1)`, req.FileID,
+		`SELECT EXISTS(SELECT 1 FROM files WHERE id = $1 AND tenant_id = $2)`, req.FileID, tenantID,
 	).Scan(&fileExists); err != nil || !fileExists {
 		Error(w, http.StatusBadRequest, "file_id does not reference an existing file")
 		return
 	}
 
-	// Verify the signing key exists.
+	// Verify the signing key exists and belongs to this tenant.
 	var keyExists bool
 	if err := h.pool.QueryRow(r.Context(),
-		`SELECT EXISTS(SELECT 1 FROM signing_keys WHERE id = $1)`, req.SignatureKeyID,
+		`SELECT EXISTS(SELECT 1 FROM signing_keys WHERE id = $1 AND tenant_id = $2)`, req.SignatureKeyID, tenantID,
 	).Scan(&keyExists); err != nil || !keyExists {
 		Error(w, http.StatusBadRequest, "signature_key_id does not reference an existing signing key")
 		return

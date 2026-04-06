@@ -47,34 +47,19 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
 
-  worker:
-    image: ghcr.io/eavalenzuela/moebius-worker:${VERSION:-latest}
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      nats:
-        condition: service_started
-    environment:
-      DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
-      NATS_URL: nats://nats:4222
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-20}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      LOG_FORMAT: ${LOG_FORMAT:-json}
-
   scheduler:
     image: ghcr.io/eavalenzuela/moebius-scheduler:${VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      nats:
-        condition: service_started
     environment:
       DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
-      NATS_URL: nats://nats:4222
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: ${LOG_FORMAT:-json}
+      # Reaper knobs — see docs/HIGH-LEVEL_DESIGN.md § Scheduler.
+      REAPER_DISPATCHED_TIMEOUT_SECONDS: ${REAPER_DISPATCHED_TIMEOUT_SECONDS:-300}
+      REAPER_INFLIGHT_TIMEOUT_SECONDS: ${REAPER_INFLIGHT_TIMEOUT_SECONDS:-3600}
 
   proxy:
     image: caddy:2-alpine

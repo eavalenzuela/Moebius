@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/eavalenzuela/Moebius/server/audit"
 	"github.com/eavalenzuela/Moebius/server/auth"
 	"github.com/eavalenzuela/Moebius/server/store"
 	"github.com/eavalenzuela/Moebius/shared/models"
@@ -13,11 +14,12 @@ import (
 // RolesHandler handles /v1/roles endpoints.
 type RolesHandler struct {
 	store *store.Store
+	audit *audit.Logger
 }
 
 // NewRolesHandler creates a RolesHandler.
-func NewRolesHandler(s *store.Store) *RolesHandler {
-	return &RolesHandler{store: s}
+func NewRolesHandler(s *store.Store, auditLog *audit.Logger) *RolesHandler {
+	return &RolesHandler{store: s, audit: auditLog}
 }
 
 // List handles GET /v1/roles.
@@ -59,6 +61,7 @@ type createRoleRequest struct {
 // Create handles POST /v1/roles.
 func (h *RolesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	tenantID := auth.TenantIDFromContext(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
 
 	var req createRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -83,6 +86,13 @@ func (h *RolesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+			"role.create", "role", role.ID, map[string]string{
+				"name": req.Name,
+			})
+	}
+
 	JSON(w, http.StatusCreated, role)
 }
 
@@ -94,6 +104,7 @@ type updateRoleRequest struct {
 // Update handles PATCH /v1/roles/{role_id}.
 func (h *RolesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	tenantID := auth.TenantIDFromContext(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
 	roleID := chi.URLParam(r, "role_id")
 
 	// Fetch current role
@@ -129,17 +140,28 @@ func (h *RolesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+			"role.update", "role", roleID, nil)
+	}
+
 	JSON(w, http.StatusOK, existing)
 }
 
 // Delete handles DELETE /v1/roles/{role_id}.
 func (h *RolesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	tenantID := auth.TenantIDFromContext(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
 	roleID := chi.URLParam(r, "role_id")
 
 	if err := h.store.DeleteRole(r.Context(), tenantID, roleID); err != nil {
 		ErrorWithCode(w, http.StatusConflict, "role_in_use", err.Error())
 		return
+	}
+
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+			"role.delete", "role", roleID, nil)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

@@ -4,7 +4,7 @@
 
 ## Overview
 
-The server is composed of three distinct processes — API server, worker, and scheduler — backed by PostgreSQL and NATS JetStream. Two official deployment targets are supported: Docker Compose for self-hosted deployments, and Kubernetes (Helm) for SaaS. Both targets run the same container images with different configuration and scaling profiles.
+The server is composed of two distinct processes — API server and scheduler — backed by PostgreSQL. Phase 6 removed NATS JetStream and the separate worker binary: job dispatch now runs inline inside the API check-in handler, and background work (cron, alerts, reaping) consolidates into the scheduler. Two official deployment targets are supported: Docker Compose for self-hosted deployments, and Kubernetes (Helm) for SaaS. Both targets run the same container images with different configuration and scaling profiles.
 
 ---
 
@@ -22,40 +22,26 @@ The server is composed of three distinct processes — API server, worker, and s
 ┌───────────────────────────▼─────────────────────────────────┐
 │                        API Server                            │
 │  - REST API (all external traffic)                          │
-│  - Agent check-in + enrollment                              │
-│  - mTLS validation                                          │
+│  - Agent check-in + enrollment (mTLS)                       │
 │  - RBAC enforcement                                         │
-│  - Job creation → NATS JetStream                            │
+│  - Inline job dispatch on agent check-in                    │
 │  - File upload handling                                     │
-└──────────────┬──────────────────────────┬───────────────────┘
-               │                          │
-               │ reads/writes             │ publishes jobs
-┌──────────────▼──────┐      ┌────────────▼────────────────────┐
-│     PostgreSQL       │      │        NATS JetStream           │
-│                      │      │                                 │
-│  - All persistent    │      │  Streams:                       │
-│    state             │      │  - jobs (job dispatch)          │
-│  - Source of truth   │      │  - results (job results)        │
-│                      │      │  - logs (agent log shipping)    │
-└──────────────▲──────┘      └────────────┬────────────────────┘
-               │                          │ consumes
-               │ reads/writes  ┌──────────▼────────────────────┐
-               │               │           Worker               │
-               └───────────────│  - Pulls jobs from NATS       │
-                               │  - Manages job state machine  │
-                               │  - Writes results to PG       │
-                               │  - Handles CDM hold logic     │
-                               │  - Scalable horizontally      │
-                               └───────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
+└───────────────────────────┬─────────────────────────────────┘
+                            │ reads / writes
+┌───────────────────────────▼─────────────────────────────────┐
+│                       PostgreSQL                             │
+│   devices, jobs, job_results, scheduled_jobs, alert_rules,   │
+│   enrollment_tokens, RBAC, tenants, audit_log, ...           │
+└───────────────────────────▲─────────────────────────────────┘
+                            │ reads / writes
+┌───────────────────────────┴─────────────────────────────────┐
 │                        Scheduler                             │
-│  - Evaluates scheduled jobs (cron)                          │
-│  - Evaluates auto-update policies                           │
-│  - Enqueues jobs → NATS JetStream                           │
-│  - Manages gradual rollout batching                         │
-│  - Sends alerts + webhooks                                  │
-│  - Runs as a single instance (leader-elected)               │
+│  - Leader-elected via PG advisory lock                      │
+│  - Cron evaluation → enqueues scheduled jobs                │
+│  - Alert-rule evaluation + notifications                    │
+│  - Reaper: requeues stuck dispatched jobs                   │
+│  - Reaper: fails stuck in-flight jobs as timed_out          │
+│  - Reaper: deletes expired enrollment tokens                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -63,40 +49,17 @@ The server is composed of three distinct processes — API server, worker, and s
 - Handles all inbound traffic: REST API, agent check-in, agent enrollment
 - Validates mTLS client certificates for agent endpoints
 - Enforces RBAC and tenant scoping on every request
-- Publishes new jobs to NATS JetStream; does not execute jobs directly
+- **Dispatches jobs inline**: on agent check-in, selects up to N queued jobs for the checking-in device, transitions them to `dispatched`, and returns them in the check-in response
 - Handles chunked file uploads; writes completed files to storage backend
 - Stateless — run as many replicas as needed behind the load balancer
-
-### Worker
-- Consumes jobs from NATS JetStream
-- Manages the job state machine (QUEUED → DISPATCHED → ACKNOWLEDGED → RUNNING → terminal)
-- On agent check-in: determines which jobs to include in the response based on device CDM state
-- Writes job state transitions and results to PostgreSQL
-- Stateless — run as many replicas as needed; NATS handles work distribution
-- Each worker instance processes jobs concurrently with a configurable goroutine pool
 
 ### Scheduler
 - Single logical instance — uses PostgreSQL advisory locks for leader election (only one scheduler runs at a time across all replicas)
 - Evaluates cron expressions for scheduled jobs and enqueues them when due
-- Evaluates auto-update policies when new agent versions are published
-- Manages gradual rollout batching — tracks batch progress and enqueues subsequent batches
 - Monitors device last-seen timestamps and fires agent-offline alert rules
 - Sends webhook and email notifications for alert rule triggers
+- **Reaper pass** each tick: requeues `dispatched` jobs past `REAPER_DISPATCHED_TIMEOUT_SECONDS`, transitions stuck `acknowledged`/`running` jobs past `REAPER_INFLIGHT_TIMEOUT_SECONDS` to `timed_out`, and deletes expired unused enrollment tokens
 - Lightweight — one replica is sufficient; a second can stand by for failover
-
----
-
-## NATS JetStream Streams
-
-| Stream | Subjects | Retention | Consumers |
-|---|---|---|---|
-| `jobs` | `jobs.dispatch.{tenant_id}.{device_id}` | Work queue (deleted on ack) | Worker pool (push consumer) |
-| `results` | `results.{tenant_id}.{job_id}` | Interest (deleted after processing) | Worker (processes and writes to PG) |
-| `logs` | `logs.{tenant_id}.{device_id}` | Limits (max age: 7 days) | Worker (writes to PG log store) |
-
-- NATS JetStream persistence ensures no jobs are lost if all workers restart simultaneously
-- Work queue semantics on `jobs` stream ensure each job is delivered to exactly one worker
-- NATS cluster (3 nodes) is recommended for production SaaS; single node is acceptable for self-hosted
 
 ---
 
@@ -125,24 +88,14 @@ services:
       timeout: 5s
       retries: 5
 
-  nats:
-    image: nats:2-alpine
-    restart: unless-stopped
-    command: ["-js", "-sd", "/data"]
-    volumes:
-      - nats_data:/data
-
   api:
     image: ghcr.io/your-org/agent-server-api:${VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      nats:
-        condition: service_started
     environment:
       DATABASE_URL: postgres://agent:${POSTGRES_PASSWORD}@postgres:5432/agent_server
-      NATS_URL: nats://nats:4222
       HTTP_PORT: 8080
       TLS_MODE: passthrough  # TLS terminated by proxy
       CA_KEY_PATH: /certs/ca.key
@@ -155,30 +108,16 @@ services:
     ports:
       - "127.0.0.1:8080:8080"  # Exposed to proxy only
 
-  worker:
-    image: ghcr.io/your-org/agent-server-worker:${VERSION:-latest}
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      nats:
-        condition: service_started
-    environment:
-      DATABASE_URL: postgres://agent:${POSTGRES_PASSWORD}@postgres:5432/agent_server
-      NATS_URL: nats://nats:4222
-      WORKER_CONCURRENCY: 20
-
   scheduler:
     image: ghcr.io/your-org/agent-server-scheduler:${VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      nats:
-        condition: service_started
     environment:
       DATABASE_URL: postgres://agent:${POSTGRES_PASSWORD}@postgres:5432/agent_server
-      NATS_URL: nats://nats:4222
+      REAPER_DISPATCHED_TIMEOUT_SECONDS: 300
+      REAPER_INFLIGHT_TIMEOUT_SECONDS: 3600
 
   proxy:
     image: caddy:2-alpine
@@ -195,7 +134,6 @@ services:
 
 volumes:
   postgres_data:
-  nats_data:
   file_data:
   caddy_data:
   caddy_config:
@@ -203,13 +141,33 @@ volumes:
 
 ### Caddyfile (Self-Hosted)
 
+For deployments without agent mTLS (API key auth only):
+
 ```
 {$SERVER_DOMAIN} {
     reverse_proxy api:8080
 }
 ```
 
-Caddy handles automatic TLS via Let's Encrypt. The operator sets `SERVER_DOMAIN` in `.env`.
+For deployments with agent mTLS via proxy cert forwarding (`TLS_MODE=passthrough`):
+
+```
+{$SERVER_DOMAIN} {
+    tls {
+        client_auth {
+            mode           request
+            trust_pool file {
+                pem_file /certs/ca.crt
+            }
+        }
+    }
+    reverse_proxy api:8080 {
+        header_up X-Client-Cert {http.request.tls.client.certificate_pem}
+    }
+}
+```
+
+Caddy handles automatic TLS via Let's Encrypt. The operator sets `SERVER_DOMAIN` in `.env`. When using proxy cert forwarding, Caddy terminates mTLS and passes the PEM-encoded client certificate to the API server via the `X-Client-Cert` header. The API server validates the header only from trusted proxy IPs (configured via `TRUSTED_PROXY_CIDRS`).
 
 ### Self-Hosted Configuration
 
@@ -222,7 +180,8 @@ POSTGRES_PASSWORD=changeme
 
 # Optional overrides
 VERSION=1.5.0
-WORKER_CONCURRENCY=20
+REAPER_DISPATCHED_TIMEOUT_SECONDS=300
+REAPER_INFLIGHT_TIMEOUT_SECONDS=3600
 STORAGE_BACKEND=local   # or 's3'
 
 # S3 storage (if STORAGE_BACKEND=s3)
@@ -267,7 +226,6 @@ docker compose run --rm api migrate
 
 # Restart services with zero-downtime rolling restart
 docker compose up -d --no-deps api
-docker compose up -d --no-deps worker
 docker compose up -d --no-deps scheduler
 ```
 
@@ -291,14 +249,8 @@ charts/agent-server/
     │   ├── service.yaml
     │   ├── hpa.yaml
     │   └── pdb.yaml
-    ├── worker/
-    │   ├── deployment.yaml
-    │   ├── hpa.yaml
-    │   └── pdb.yaml
     ├── scheduler/
     │   └── deployment.yaml
-    ├── nats/
-    │   └── statefulset.yaml  (or external NATS via values)
     ├── migrations/
     │   └── job.yaml
     ├── ingress.yaml
@@ -329,24 +281,11 @@ api:
   podDisruptionBudget:
     minAvailable: 2
 
-worker:
-  replicaCount: 3
-  concurrency: 50
-  autoscaling:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 50
-    targetCPUUtilizationPercentage: 70
-
 scheduler:
   replicaCount: 2  # one active, one standby (leader election via PG advisory lock)
-
-nats:
-  external: false  # set true to use an external NATS cluster
-  externalUrl: ""
-  cluster:
-    enabled: true
-    replicas: 3
+  env:
+    REAPER_DISPATCHED_TIMEOUT_SECONDS: "300"
+    REAPER_INFLIGHT_TIMEOUT_SECONDS: "3600"
 
 postgres:
   external: true   # always use external managed PG in SaaS (RDS, Cloud SQL, etc.)
@@ -416,12 +355,11 @@ Migrations are managed with a dedicated migration tool (e.g. `golang-migrate`). 
 
 ## Environment Variables Reference
 
-All three server processes share a common set of environment variables:
+Both server processes share a common set of environment variables:
 
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `NATS_URL` | Yes | NATS server URL |
 | `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` (default: `info`) |
 | `LOG_FORMAT` | No | `json` or `text` (default: `json`) |
 | `TENANT_MODE` | No | `single` or `multi` (default: `multi`) |
@@ -436,6 +374,7 @@ All three server processes share a common set of environment variables:
 | `TLS_KEY_PATH` | If TLS_MODE=direct | Path to server TLS key |
 | `CA_CERT_PATH` | Yes | Path to intermediate CA certificate (for mTLS validation) |
 | `CA_KEY_PATH` | Yes | Path to intermediate CA private key (for signing agent CSRs) |
+| `TRUSTED_PROXY_CIDRS` | No | Comma-separated CIDRs trusted to forward `X-Client-Cert` (default: private networks) |
 | `STORAGE_BACKEND` | No | `local` or `s3` (default: `local`) |
 | `STORAGE_PATH` | If local | Local filesystem path for file storage |
 | `S3_ENDPOINT` | If s3 | S3-compatible endpoint URL |
@@ -447,11 +386,14 @@ All three server processes share a common set of environment variables:
 | `OIDC_CLIENT_ID` | No | OIDC client ID |
 | `OIDC_CLIENT_SECRET` | No | OIDC client secret |
 
-**Worker only:**
+**Scheduler only:**
 
 | Variable | Required | Description |
 |---|---|---|
-| `WORKER_CONCURRENCY` | No | Max concurrent jobs per worker instance (default: `20`) |
+| `SCHEDULER_TICK_SECONDS` | No | Tick interval for cron/reaper passes (default: `30`) |
+| `REAPER_DISPATCHED_TIMEOUT_SECONDS` | No | Dispatched jobs older than this are requeued (default: `300`) |
+| `REAPER_INFLIGHT_TIMEOUT_SECONDS` | No | Acknowledged/running jobs older than this are marked `timed_out` (default: `3600`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_FROM` | No | SMTP config for alert emails |
 
 ---
 
@@ -474,7 +416,7 @@ Key metrics exposed:
 | `jobs_enqueued_total` | Counter | Jobs enqueued (by type, tenant) |
 | `jobs_completed_total` | Counter | Jobs completed (by type, status, tenant) |
 | `job_duration_seconds` | Histogram | Job execution duration (by type) |
-| `job_queue_depth` | Gauge | Current NATS queue depth (by stream) |
+| `jobs_reaped_total` | Counter | Jobs reaped by the scheduler (by kind: `dispatched_requeued`, `inflight_timedout`) |
 | `file_transfer_bytes_total` | Counter | Bytes transferred (by direction, tenant) |
 | `api_request_duration_seconds` | Histogram | API request latency (by endpoint, status) |
 | `db_query_duration_seconds` | Histogram | Database query latency (by query) |
@@ -484,7 +426,7 @@ Key metrics exposed:
 All processes expose:
 ```
 GET /health        ← liveness probe (returns 200 if process is running)
-GET /health/ready  ← readiness probe (returns 200 if DB + NATS connections are healthy)
+GET /health/ready  ← readiness probe (returns 200 if DB connection is healthy)
 ```
 
 ---
@@ -494,9 +436,9 @@ GET /health/ready  ← readiness probe (returns 200 if DB + NATS connections are
 | Concern | Mitigation |
 |---|---|
 | Database not exposed externally | PostgreSQL is internal-only; no external port |
-| NATS not exposed externally | NATS is internal-only; no external port |
 | CA private key protection | Stored in a protected volume (self-hosted) or Kubernetes Secret with restricted RBAC (SaaS) |
-| Worker/scheduler have no public surface | Only the API server is exposed via ingress |
+| Scheduler has no public surface | Only the API server is exposed via ingress; scheduler talks only to PostgreSQL |
+| Scheduler has no RBAC dependency | `server/cmd/scheduler` has a regression test (`TestScheduler_NoAuthzImports`) enforcing that it never imports `server/rbac`, `server/auth`, or `server/api` — invariant I3 |
 | Secret management | `.env` file for self-hosted; Kubernetes Secrets + external secret operator (e.g. External Secrets Operator) for SaaS |
 | Image provenance | All images signed with cosign and published to GHCR; Helm chart verifies digests |
 
@@ -507,11 +449,10 @@ GET /health/ready  ← readiness probe (returns 200 if DB + NATS connections are
 Each server process is a separate Go binary built from the monorepo:
 
 ```
-go build ./server/cmd/api        → agent-server-api
-go build ./server/cmd/worker     → agent-server-worker
-go build ./server/cmd/scheduler  → agent-server-scheduler
+go build ./server/cmd/api        → moebius-api
+go build ./server/cmd/scheduler  → moebius-scheduler
 ```
 
-Each binary is packaged into its own minimal container image (distroless or alpine base). All three share the same image tag per release — versions are always deployed in lockstep.
+Each binary is packaged into its own minimal container image (distroless or alpine base). Both binaries share the same image tag per release — versions are always deployed in lockstep.
 
 GitHub Actions matrix build produces images for `linux/amd64` and `linux/arm64`.

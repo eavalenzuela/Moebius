@@ -25,6 +25,7 @@ type Config struct {
 	TLSKeyPath        string
 	CACertPath        string
 	CAKeyPath         string
+	TrustedProxyCIDRs string // comma-separated CIDRs trusted to forward X-Client-Cert
 	StorageBackend    string // local, s3
 	StoragePath       string
 	S3Endpoint        string
@@ -36,16 +37,15 @@ type Config struct {
 	OIDCClientID      string
 	OIDCClientSecret  string
 
-	// Worker only
-	WorkerConcurrency int
-
 	// Scheduler only
-	SchedulerTickSeconds int    // tick interval for cron evaluation
-	SMTPHost             string // SMTP server host for email alerts
-	SMTPPort             int
-	SMTPUsername         string
-	SMTPPassword         string
-	SMTPFrom             string // sender address for alert emails
+	SchedulerTickSeconds        int    // tick interval for cron evaluation
+	ReaperDispatchedTimeoutSec  int    // dispatched jobs older than this are requeued
+	ReaperInflightTimeoutSec    int    // acknowledged/running jobs older than this fail with timed_out
+	SMTPHost                    string // SMTP server host for email alerts
+	SMTPPort                    int
+	SMTPUsername                string
+	SMTPPassword                string
+	SMTPFrom                    string // sender address for alert emails
 }
 
 // Process identifies which server binary is loading the config.
@@ -53,7 +53,6 @@ type Process int
 
 const (
 	ProcessAPI Process = iota
-	ProcessWorker
 	ProcessScheduler
 )
 
@@ -68,6 +67,7 @@ func Load(proc Process) (*Config, error) {
 		TenantMode:           envOrDefault("TENANT_MODE", "multi"),
 		HTTPPort:             envIntOrDefault("HTTP_PORT", 8080),
 		TLSMode:              envOrDefault("TLS_MODE", "passthrough"),
+		TrustedProxyCIDRs:    envOrDefault("TRUSTED_PROXY_CIDRS", "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1/128,fd00::/8"),
 		TLSCertPath:          os.Getenv("TLS_CERT_PATH"),
 		TLSKeyPath:           os.Getenv("TLS_KEY_PATH"),
 		CACertPath:           os.Getenv("CA_CERT_PATH"),
@@ -82,8 +82,9 @@ func Load(proc Process) (*Config, error) {
 		OIDCIssuerURL:        os.Getenv("OIDC_ISSUER_URL"),
 		OIDCClientID:         os.Getenv("OIDC_CLIENT_ID"),
 		OIDCClientSecret:     os.Getenv("OIDC_CLIENT_SECRET"),
-		WorkerConcurrency:    envIntOrDefault("WORKER_CONCURRENCY", 20),
-		SchedulerTickSeconds: envIntOrDefault("SCHEDULER_TICK_SECONDS", 30),
+		SchedulerTickSeconds:       envIntOrDefault("SCHEDULER_TICK_SECONDS", 30),
+		ReaperDispatchedTimeoutSec: envIntOrDefault("REAPER_DISPATCHED_TIMEOUT_SECONDS", 300),
+		ReaperInflightTimeoutSec:   envIntOrDefault("REAPER_INFLIGHT_TIMEOUT_SECONDS", 3600),
 		SMTPHost:             os.Getenv("SMTP_HOST"),
 		SMTPPort:             envIntOrDefault("SMTP_PORT", 587),
 		SMTPUsername:         os.Getenv("SMTP_USERNAME"),
@@ -105,10 +106,9 @@ func (c *Config) validate(proc Process) error {
 		missing = append(missing, "DATABASE_URL")
 	}
 
-	// NATS is required for worker and scheduler, optional for API
-	if proc != ProcessAPI && c.NATSURL == "" {
-		missing = append(missing, "NATS_URL")
-	}
+	// NATS is unused since the Phase 6 inline-dispatch refactor. The
+	// NATSURL field is still read so existing deployments do not fail to
+	// boot, but we no longer require it.
 
 	// Validate enum values
 	switch c.LogLevel {

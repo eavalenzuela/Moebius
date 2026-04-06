@@ -82,6 +82,24 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Scope enforcement: intersect resolved targets with API key scope
+	if !auth.IsAdminFromContext(ctx) {
+		scope := auth.ScopeFromContext(ctx)
+		if scope != nil {
+			allowed, err := auth.ResolveScope(ctx, h.pool, tenantID, scope)
+			if err != nil {
+				h.log.Error("failed to resolve scope", slog.String("error", err.Error()))
+				Error(w, http.StatusInternalServerError, "failed to resolve scope")
+				return
+			}
+			deviceIDs = auth.FilterDeviceIDs(allowed, deviceIDs)
+			if len(deviceIDs) == 0 {
+				ErrorWithCode(w, http.StatusForbidden, "scope_violation", "target devices are outside this key's scope")
+				return
+			}
+		}
+	}
+
 	// Apply default retry policy if not specified
 	retryPolicy := req.RetryPolicy
 	if retryPolicy == nil {
@@ -255,6 +273,16 @@ func (h *JobsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Scope enforcement — admin bypass
+	if !auth.IsAdminFromContext(ctx) {
+		if allowed, err := auth.ResolveScope(ctx, h.pool, tenantID, auth.ScopeFromContext(ctx)); err == nil {
+			if !auth.DeviceInScope(allowed, j.DeviceID) {
+				Error(w, http.StatusNotFound, "job not found")
+				return
+			}
+		}
+	}
+
 	if parentJobID != nil {
 		j.ParentJobID = *parentJobID
 	}
@@ -291,10 +319,37 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	typeFilter := r.URL.Query().Get("type")
 	deviceFilter := r.URL.Query().Get("device_id")
 
+	// Scope enforcement — resolve allowed device IDs for scoped keys
+	var scopeDeviceIDs []string
+	if !auth.IsAdminFromContext(ctx) {
+		scope := auth.ScopeFromContext(ctx)
+		if scope != nil {
+			allowed, err := auth.ResolveScope(ctx, h.pool, tenantID, scope)
+			if err != nil {
+				h.log.Error("failed to resolve scope", slog.String("error", err.Error()))
+				Error(w, http.StatusInternalServerError, "failed to resolve scope")
+				return
+			}
+			for id := range allowed {
+				scopeDeviceIDs = append(scopeDeviceIDs, id)
+			}
+			if len(scopeDeviceIDs) == 0 {
+				JSON(w, http.StatusOK, map[string]any{"data": []models.Job{}})
+				return
+			}
+		}
+	}
+
 	query := `SELECT id, tenant_id, device_id, type, status, payload, created_at
 			  FROM jobs WHERE tenant_id = $1`
 	args := []any{tenantID}
 	argIdx := 2
+
+	if len(scopeDeviceIDs) > 0 {
+		query += " AND device_id = ANY($" + strconv.Itoa(argIdx) + ")"
+		args = append(args, scopeDeviceIDs)
+		argIdx++
+	}
 
 	if statusFilter != "" {
 		query += " AND status = $" + strconv.Itoa(argIdx)
@@ -354,11 +409,11 @@ func (h *JobsHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	now := time.Now().UTC()
 
-	var currentStatus string
+	var currentStatus, deviceID string
 	err := h.pool.QueryRow(ctx,
-		`SELECT status FROM jobs WHERE id = $1 AND tenant_id = $2`,
+		`SELECT status, device_id FROM jobs WHERE id = $1 AND tenant_id = $2`,
 		jobID, tenantID,
-	).Scan(&currentStatus)
+	).Scan(&currentStatus, &deviceID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			Error(w, http.StatusNotFound, "job not found")
@@ -367,6 +422,16 @@ func (h *JobsHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to get job", slog.String("error", err.Error()))
 		Error(w, http.StatusInternalServerError, "failed to get job")
 		return
+	}
+
+	// Scope enforcement — admin bypass
+	if !auth.IsAdminFromContext(ctx) {
+		if allowed, err := auth.ResolveScope(ctx, h.pool, tenantID, auth.ScopeFromContext(ctx)); err == nil {
+			if !auth.DeviceInScope(allowed, deviceID) {
+				ErrorWithCode(w, http.StatusForbidden, "scope_violation", "job target device is outside this key's scope")
+				return
+			}
+		}
 	}
 
 	if !jobs.IsCancellable(currentStatus) {
@@ -418,6 +483,16 @@ func (h *JobsHandler) Retry(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to get job", slog.String("error", err.Error()))
 		Error(w, http.StatusInternalServerError, "failed to get job")
 		return
+	}
+
+	// Scope enforcement — admin bypass
+	if !auth.IsAdminFromContext(ctx) {
+		if allowed, err := auth.ResolveScope(ctx, h.pool, tenantID, auth.ScopeFromContext(ctx)); err == nil {
+			if !auth.DeviceInScope(allowed, j.DeviceID) {
+				ErrorWithCode(w, http.StatusForbidden, "scope_violation", "job target device is outside this key's scope")
+				return
+			}
+		}
 	}
 
 	if !jobs.IsRetryable(j.Status) {

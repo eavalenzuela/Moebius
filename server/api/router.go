@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/x509"
 	"log/slog"
 	"net/http"
 
@@ -19,23 +20,44 @@ import (
 
 // RouterConfig holds the dependencies needed to build the API router.
 type RouterConfig struct {
-	Pool       *pgxpool.Pool
-	Store      *store.Store
-	CA         *pki.CA
-	Audit      *audit.Logger
-	Log        *slog.Logger
-	Health     *health.Handler
-	Enrollment *auth.EnrollmentService
-	Storage    storage.Backend
+	Pool              *pgxpool.Pool
+	Store             *store.Store
+	CA                *pki.CA
+	Audit             *audit.Logger
+	Log               *slog.Logger
+	Health            *health.Handler
+	Enrollment        *auth.EnrollmentService
+	Storage           storage.Backend
+	TrustedProxyCIDRs string // comma-separated CIDRs; empty disables proxy cert header
 }
 
 // NewRouter creates the fully wired chi router for the API server.
 func NewRouter(cfg RouterConfig) http.Handler {
 	r := chi.NewRouter()
 
+	// Build CA cert pool for mTLS chain verification (used in both direct
+	// and passthrough modes — in direct mode Go's TLS layer also checks,
+	// in passthrough mode the middleware verifies the forwarded cert).
+	var caCertPool *x509.CertPool
+	if cfg.CA != nil {
+		caCertPool = x509.NewCertPool()
+		caCertPool.AddCert(cfg.CA.Cert)
+	}
+
 	// Global middleware
 	r.Use(RequestID)
 	r.Use(MetricsMiddleware)
+
+	// Strip X-Client-Cert from untrusted sources to prevent header spoofing.
+	if cfg.TrustedProxyCIDRs != "" {
+		sanitizer, err := auth.NewProxyCertSanitizer(cfg.TrustedProxyCIDRs)
+		if err != nil {
+			cfg.Log.Error("invalid TRUSTED_PROXY_CIDRS, disabling proxy cert header",
+				slog.String("error", err.Error()))
+		} else {
+			r.Use(sanitizer.Handler)
+		}
+	}
 
 	// Health & metrics (unauthenticated)
 	r.Get("/health", cfg.Health.Liveness)
@@ -58,7 +80,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	r.Get("/v1/installers/{os}/{arch}/{version}/signature", installersDownload.Signature)
 
 	// Agent endpoints (mTLS-authenticated)
-	mtls := auth.NewMTLSMiddleware(cfg.Pool, cfg.Log)
+	mtls := auth.NewMTLSMiddleware(cfg.Pool, cfg.Log, caCertPool)
 	r.Route("/v1/agents", func(r chi.Router) {
 		r.Use(mtls.Handler)
 		renewHandler := NewRenewHandler(cfg.Pool, cfg.CA, cfg.Audit, cfg.Log)
@@ -95,7 +117,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.Use(auth.RequireTenant)
 
 		// Roles
-		roles := NewRolesHandler(cfg.Store)
+		roles := NewRolesHandler(cfg.Store, cfg.Audit)
 		r.With(rbac.Require(rbac.PermRolesRead)).Get("/roles", roles.List)
 		r.With(rbac.Require(rbac.PermRolesWrite)).Post("/roles", roles.Create)
 		r.With(rbac.Require(rbac.PermRolesRead)).Get("/roles/{role_id}", roles.Get)
@@ -103,7 +125,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermRolesWrite)).Delete("/roles/{role_id}", roles.Delete)
 
 		// Users
-		users := NewUsersHandler(cfg.Store)
+		users := NewUsersHandler(cfg.Store, cfg.Audit)
 		r.With(rbac.Require(rbac.PermUsersRead)).Get("/users", users.List)
 		r.With(rbac.Require(rbac.PermUsersRead)).Get("/users/{user_id}", users.Get)
 		r.With(rbac.Require(rbac.PermUsersWrite)).Post("/users/invite", users.Invite)
@@ -111,13 +133,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermUsersWrite)).Post("/users/{user_id}/deactivate", users.Deactivate)
 
 		// API Keys
-		apiKeys := NewAPIKeysHandler(cfg.Store)
+		apiKeys := NewAPIKeysHandler(cfg.Store, cfg.Audit)
 		r.With(rbac.Require(rbac.PermAPIKeysRead)).Get("/api-keys", apiKeys.List)
 		r.With(rbac.Require(rbac.PermAPIKeysWrite)).Post("/api-keys", apiKeys.Create)
 		r.With(rbac.Require(rbac.PermAPIKeysWrite)).Delete("/api-keys/{key_id}", apiKeys.Delete)
 
 		// Tenant
-		tenant := NewTenantHandler(cfg.Store)
+		tenant := NewTenantHandler(cfg.Store, cfg.Audit)
 		r.With(rbac.Require(rbac.PermTenantRead)).Get("/tenant", tenant.Get)
 		r.With(rbac.Require(rbac.PermTenantWrite)).Patch("/tenant", tenant.Update)
 
@@ -141,7 +163,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermInventoryRead)).Get("/devices/{device_id}/inventory", inv.GetDeviceInventory)
 
 		// Device tags
-		tags := NewTagsHandler(cfg.Store)
+		tags := NewTagsHandler(cfg.Store, cfg.Audit)
 		r.With(rbac.Require(rbac.PermTagsRead)).Get("/tags", tags.List)
 		r.With(rbac.Require(rbac.PermTagsWrite)).Post("/tags", tags.Create)
 		r.With(rbac.Require(rbac.PermTagsWrite)).Delete("/tags/{tag_id}", tags.Delete)
@@ -149,7 +171,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermTagsWrite)).Delete("/devices/{device_id}/tags/{tag_id}", tags.RemoveFromDevice)
 
 		// Groups
-		groups := NewGroupsHandler(cfg.Store)
+		groups := NewGroupsHandler(cfg.Store, cfg.Audit)
 		r.With(rbac.Require(rbac.PermGroupsRead)).Get("/groups", groups.List)
 		r.With(rbac.Require(rbac.PermGroupsWrite)).Post("/groups", groups.Create)
 		r.With(rbac.Require(rbac.PermGroupsRead)).Get("/groups/{group_id}", groups.Get)
@@ -160,7 +182,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermGroupsWrite)).Delete("/groups/{group_id}/devices/{device_id}", groups.RemoveDevice)
 
 		// Sites
-		sites := NewSitesHandler(cfg.Store)
+		sites := NewSitesHandler(cfg.Store, cfg.Audit)
 		r.With(rbac.Require(rbac.PermSitesRead)).Get("/sites", sites.List)
 		r.With(rbac.Require(rbac.PermSitesWrite)).Post("/sites", sites.Create)
 		r.With(rbac.Require(rbac.PermSitesRead)).Get("/sites/{site_id}", sites.Get)

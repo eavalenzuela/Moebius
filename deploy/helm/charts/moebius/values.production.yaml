@@ -17,18 +17,6 @@ api:
       cpu: 2000m
       memory: 1Gi
 
-worker:
-  replicaCount: 5
-  autoscaling:
-    enabled: true
-    minReplicas: 5
-    maxReplicas: 100
-    targetCPUUtilizationPercentage: 60
-  podDisruptionBudget:
-    minAvailable: 3
-  env:
-    WORKER_CONCURRENCY: "100"
-
 scheduler:
   replicaCount: 2
 

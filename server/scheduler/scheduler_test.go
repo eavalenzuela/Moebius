@@ -66,13 +66,29 @@ func TestTruncateList(t *testing.T) {
 }
 
 func TestNewSchedulerDefaults(t *testing.T) {
-	s := New(nil, nil, nil, nil, 0)
+	s := New(nil, nil, nil, nil, Config{})
 	if s.tick != 30*time.Second {
 		t.Errorf("default tick = %v, want 30s", s.tick)
 	}
+	if s.dispatchedTimeout != 300*time.Second {
+		t.Errorf("default dispatchedTimeout = %v, want 300s", s.dispatchedTimeout)
+	}
+	if s.inflightTimeout != 3600*time.Second {
+		t.Errorf("default inflightTimeout = %v, want 3600s", s.inflightTimeout)
+	}
 
-	s2 := New(nil, nil, nil, nil, 60)
+	s2 := New(nil, nil, nil, nil, Config{
+		TickSeconds:                60,
+		ReaperDispatchedTimeoutSec: 120,
+		ReaperInflightTimeoutSec:   240,
+	})
 	if s2.tick != 60*time.Second {
 		t.Errorf("tick = %v, want 60s", s2.tick)
+	}
+	if s2.dispatchedTimeout != 120*time.Second {
+		t.Errorf("dispatchedTimeout = %v, want 120s", s2.dispatchedTimeout)
+	}
+	if s2.inflightTimeout != 240*time.Second {
+		t.Errorf("inflightTimeout = %v, want 240s", s2.inflightTimeout)
 	}
 }

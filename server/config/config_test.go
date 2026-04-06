@@ -16,7 +16,6 @@ func setEnv(t *testing.T, vars map[string]string) {
 func sharedEnv() map[string]string {
 	return map[string]string{
 		"DATABASE_URL": "postgres://localhost/moebius",
-		"NATS_URL":     "nats://localhost:4222",
 	}
 }
 
@@ -28,10 +27,10 @@ func apiEnv() map[string]string {
 	return m
 }
 
-func TestLoadWorker_Defaults(t *testing.T) {
+func TestLoadScheduler_SharedDefaults(t *testing.T) {
 	setEnv(t, sharedEnv())
 
-	cfg, err := Load(ProcessWorker)
+	cfg, err := Load(ProcessScheduler)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -43,9 +42,6 @@ func TestLoadWorker_Defaults(t *testing.T) {
 	}
 	if cfg.TenantMode != "multi" {
 		t.Errorf("TenantMode = %q, want %q", cfg.TenantMode, "multi")
-	}
-	if cfg.WorkerConcurrency != 20 {
-		t.Errorf("WorkerConcurrency = %d, want 20", cfg.WorkerConcurrency)
 	}
 }
 
@@ -128,9 +124,7 @@ func TestLoadAPI_S3_MissingBucket(t *testing.T) {
 }
 
 func TestLoad_MissingDatabaseURL(t *testing.T) {
-	t.Setenv("NATS_URL", "nats://localhost:4222")
-
-	_, err := Load(ProcessWorker)
+	_, err := Load(ProcessScheduler)
 	if err == nil {
 		t.Fatal("expected error for missing DATABASE_URL")
 	}
@@ -141,7 +135,7 @@ func TestLoad_InvalidLogLevel(t *testing.T) {
 	env["LOG_LEVEL"] = "verbose"
 	setEnv(t, env)
 
-	_, err := Load(ProcessWorker)
+	_, err := Load(ProcessScheduler)
 	if err == nil {
 		t.Fatal("expected error for invalid LOG_LEVEL")
 	}
@@ -192,6 +186,12 @@ func TestLoad_SchedulerMinimal(t *testing.T) {
 	}
 	if cfg.SMTPFrom != "moebius@localhost" {
 		t.Errorf("SMTPFrom = %q, want %q", cfg.SMTPFrom, "moebius@localhost")
+	}
+	if cfg.ReaperDispatchedTimeoutSec != 300 {
+		t.Errorf("ReaperDispatchedTimeoutSec = %d, want 300", cfg.ReaperDispatchedTimeoutSec)
+	}
+	if cfg.ReaperInflightTimeoutSec != 3600 {
+		t.Errorf("ReaperInflightTimeoutSec = %d, want 3600", cfg.ReaperInflightTimeoutSec)
 	}
 }
 

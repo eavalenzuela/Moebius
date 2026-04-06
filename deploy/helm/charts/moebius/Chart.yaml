@@ -1,6 +1,6 @@
 apiVersion: v2
 name: moebius
-description: Moebius device management platform — API, Worker, Scheduler
+description: Moebius device management platform — API, Scheduler
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

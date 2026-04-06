@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eavalenzuela/Moebius/server/audit"
 	"github.com/eavalenzuela/Moebius/server/auth"
 	"github.com/eavalenzuela/Moebius/server/store"
 	"github.com/eavalenzuela/Moebius/shared/models"
@@ -17,11 +18,12 @@ import (
 // APIKeysHandler handles /v1/api-keys endpoints.
 type APIKeysHandler struct {
 	store *store.Store
+	audit *audit.Logger
 }
 
 // NewAPIKeysHandler creates an APIKeysHandler.
-func NewAPIKeysHandler(s *store.Store) *APIKeysHandler {
-	return &APIKeysHandler{store: s}
+func NewAPIKeysHandler(s *store.Store, auditLog *audit.Logger) *APIKeysHandler {
+	return &APIKeysHandler{store: s, audit: auditLog}
 }
 
 // List handles GET /v1/api-keys.
@@ -88,6 +90,13 @@ func (h *APIKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+			"api_key.create", "api_key", key.ID, map[string]string{
+				"name": req.Name,
+			})
+	}
+
 	JSON(w, http.StatusCreated, createAPIKeyResponse{
 		APIKey: *key,
 		Key:    rawKey,
@@ -97,11 +106,17 @@ func (h *APIKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
 // Delete handles DELETE /v1/api-keys/{key_id}.
 func (h *APIKeysHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	tenantID := auth.TenantIDFromContext(r.Context())
+	userID := auth.UserIDFromContext(r.Context())
 	keyID := chi.URLParam(r, "key_id")
 
 	if err := h.store.DeleteAPIKey(r.Context(), tenantID, keyID); err != nil {
 		ErrorWithCode(w, http.StatusNotFound, "api_key_not_found", "No API key with the given ID exists")
 		return
+	}
+
+	if h.audit != nil {
+		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+			"api_key.delete", "api_key", keyID, nil)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

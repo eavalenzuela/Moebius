@@ -15,15 +15,11 @@ DIST = dist
 # ─── Build ──────────────────────────────────────────────
 
 .PHONY: build
-build: build-api build-worker build-scheduler build-agent build-pkg-helper ## Build all binaries (native)
+build: build-api build-scheduler build-agent build-pkg-helper ## Build all binaries (native)
 
 .PHONY: build-api
 build-api: ## Build API server
 	go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-api ./server/cmd/api
-
-.PHONY: build-worker
-build-worker: ## Build worker
-	go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-worker ./server/cmd/worker
 
 .PHONY: build-scheduler
 build-scheduler: ## Build scheduler
@@ -96,8 +92,6 @@ dist: build-tarball-linux-amd64 build-tarball-linux-arm64 ## Build all release a
 build-server-all: ## Cross-compile all server binaries for linux/amd64 and linux/arm64
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-api-linux-amd64 ./server/cmd/api
 	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-api-linux-arm64 ./server/cmd/api
-	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-worker-linux-amd64 ./server/cmd/worker
-	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-worker-linux-arm64 ./server/cmd/worker
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-scheduler-linux-amd64 ./server/cmd/scheduler
 	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(DIST)/moebius-scheduler-linux-arm64 ./server/cmd/scheduler
 
@@ -144,15 +138,11 @@ DOCKER_REGISTRY ?= ghcr.io/eavalenzuela
 DOCKER_TAG      ?= $(VERSION)
 
 .PHONY: docker-build
-docker-build: docker-build-api docker-build-worker docker-build-scheduler ## Build all Docker images
+docker-build: docker-build-api docker-build-scheduler ## Build all Docker images
 
 .PHONY: docker-build-api
 docker-build-api:
 	docker build -f deploy/docker/Dockerfile.api -t $(DOCKER_REGISTRY)/moebius-api:$(DOCKER_TAG) .
-
-.PHONY: docker-build-worker
-docker-build-worker:
-	docker build -f deploy/docker/Dockerfile.worker -t $(DOCKER_REGISTRY)/moebius-worker:$(DOCKER_TAG) .
 
 .PHONY: docker-build-scheduler
 docker-build-scheduler:
@@ -161,7 +151,6 @@ docker-build-scheduler:
 .PHONY: docker-push
 docker-push: ## Push all Docker images
 	docker push $(DOCKER_REGISTRY)/moebius-api:$(DOCKER_TAG)
-	docker push $(DOCKER_REGISTRY)/moebius-worker:$(DOCKER_TAG)
 	docker push $(DOCKER_REGISTRY)/moebius-scheduler:$(DOCKER_TAG)
 
 # ─── Clean ──────────────────────────────────────────────

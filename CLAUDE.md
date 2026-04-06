@@ -10,22 +10,24 @@ Moebius is a FOSS device management platform (agent + server) written in Go. It 
 
 ## Architecture
 
-- **API Server (Go):** Single public-facing component. REST API with API key + OIDC auth, RBAC enforcement, job dispatch. Serves agent check-in endpoint.
-- **Job Queue (NATS JetStream):** Decouples job creation from execution. Workers pull jobs and write results to PostgreSQL.
+- **API Server (Go):** Single public-facing component. REST API with API key + OIDC auth, RBAC enforcement, inline job dispatch. Serves agent check-in endpoint.
+- **Scheduler (Go):** Leader-elected background process. Evaluates cron-scheduled jobs, fires alert rules, and reaps stuck jobs / expired tokens. One active instance per cluster via PG advisory lock.
 - **PostgreSQL:** Single source of truth. Tenant isolation via `tenant_id` on every table.
 - **Agent (Go):** Polls server every 30s, ships heartbeat + delta inventory, receives and executes jobs. Runs as systemd service (Linux) or Windows Service. Includes local web UI (localhost-only) and CLI.
 - **Web UI (React):** SPA that talks only to the API server.
 
+Job dispatch is **inline** (API server assigns jobs during check-in) rather than via a message bus. Phase 6 removed NATS and the separate worker binary — the scheduler now absorbs the remaining background responsibilities (reaping stuck jobs, cron evaluation, alert evaluation).
+
 Key invariants:
 - Agents never receive inbound connections (poll-only)
 - CDM (Customer Device Mode) is enforced on the agent, not the server
-- All RBAC enforcement is in the API server; workers trust jobs are pre-authorized
+- All RBAC enforcement is in the API server; background processors (scheduler) trust pre-authorized rows
 
 ## Monorepo Structure
 
 ```
 agent/          # Agent binary: poller, executor, inventory, cdm, localui, localcli, platform/{windows,linux}
-server/         # Server: api, auth, rbac, jobs, worker, store, notify
+server/         # Server: api, auth, rbac, jobs, scheduler, store, notify
 shared/         # protocol (agent<->server types), models, version
 ui/             # React frontend
 deploy/         # docker-compose.yml, helm/, migrations/
@@ -65,16 +67,15 @@ make fmt-check      # Check formatting (CI)
 make test-cover     # Tests with coverage report
 make build-agent-all  # Cross-compile agent for linux/{amd64,arm64}, windows/amd64
 make build-server-all # Cross-compile server binaries for linux/{amd64,arm64}
-make docker-build   # Build Docker images for api, worker, scheduler
+make docker-build   # Build Docker images for api, scheduler
 make clean          # Remove build artifacts
 ```
 
 Version is injected at build time via `-ldflags` from `shared/version` package.
 
-**Four binaries:**
+**Three binaries:**
 - `server/cmd/api` → `moebius-api` (subcommands: `migrate`, `generate-ca`, `create-admin`)
-- `server/cmd/worker` → `moebius-worker`
-- `server/cmd/scheduler` → `moebius-scheduler`
+- `server/cmd/scheduler` → `moebius-scheduler` (cron evaluation, alert firing, job/token reaping)
 - `agent/cmd/agent` → `moebius-agent` (subcommands: `run`, `status`, `cdm`, `install`, `uninstall`, `verify`, `logs`, `version`)
 
 **Server core packages (Phase 2):**

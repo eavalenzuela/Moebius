@@ -39,6 +39,16 @@ func (h *InventoryHandler) GetDeviceInventory(w http.ResponseWriter, r *http.Req
 	deviceID := chi.URLParam(r, "device_id")
 	ctx := r.Context()
 
+	// Scope enforcement — admin bypass
+	if !auth.IsAdminFromContext(ctx) {
+		if allowed, err := auth.ResolveScope(ctx, h.pool, tenantID, auth.ScopeFromContext(ctx)); err == nil {
+			if !auth.DeviceInScope(allowed, deviceID) {
+				Error(w, http.StatusNotFound, "device not found")
+				return
+			}
+		}
+	}
+
 	// Verify device belongs to tenant
 	var exists bool
 	err := h.pool.QueryRow(ctx,
