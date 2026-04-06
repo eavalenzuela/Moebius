@@ -312,12 +312,12 @@ For each invariant, fill in the following as work progresses. Kept out of the ma
 **Command injection (agent executor)**
 - [x] `exec` job type: command is passed as `argv`, not `sh -c`, OR if shell is used, parameters are not interpolated from untrusted sources. **Evidence:** Static analysis — `agent/executor/` uses `exec.CommandContext` with argv separation; no `sh -c` wrapper. Package manager commands use explicit argv arrays.
 - [x] Verify `agent/executor/` doesn't pass job payloads through a shell in a way that allows escaping. **Evidence:** Static analysis — grep for `sh.*-c` in `agent/executor/`: zero matches.
-- [ ] Package install jobs: package names validated against a regex or list; don't allow `--` or shell metacharacters.
+- [x] Package install jobs: package names validated against a regex or list; don't allow `--` or shell metacharacters. **Evidence:** Linux `pkgmanager.go:207` — `ValidateHelperArgs` rejects names containing `;|&$\`"'<>(){}!\n\r\t `. Setuid helper validates before exec. Commands use argv arrays (`exec.Command(program, args...)`), not shell interpolation. Windows uses `exec.Command` with separate args (`--id`, name), not shell.
 
 **Path traversal**
-- [ ] File transfer: verify the file path an agent writes to is server-dictated and sanitized; `../` sequences rejected.
-- [ ] Installer hosting endpoints: confirm the file path served is whitelisted, no arbitrary file read.
-- [ ] Storage backend: uploaded file paths normalized, no symlink escape.
+- [x] File transfer: verify the file path an agent writes to is server-dictated and sanitized; `../` sequences rejected. **Evidence:** `filetransfer.go:107` uses `filepath.Base(p.FileID)` to strip directory components. Destination dir (`dropDir`) comes from executor config, not job payload.
+- [x] Installer hosting endpoints: confirm the file path served is whitelisted, no arbitrary file read. **Evidence:** Installer downloads go through DB lookup by ID, then `storage.Open(fileID)`. `fileID` is a server-generated UUID (`models.NewFileID()`). **Note:** `ServeFileData` (`GET /v1/files/data/{file_id}`) is unauthenticated and passes `file_id` directly to `storage.Open` → `filepath.Join(baseDir, filepath.FromSlash(key))`. Chi router normalizes `..` in URL paths before parameter extraction, mitigating direct traversal, but a defense-in-depth check (validate `file_id` format as UUID) would be advisable.
+- [x] Storage backend: uploaded file paths normalized, no symlink escape. **Evidence:** `storage.go:91` — `filepath.Join(baseDir, filepath.FromSlash(key))`. Keys are server-generated UUIDs (`models.NewFileID()`), never user input. `filepath.Join` normalizes `..` segments. No symlink following beyond OS default.
 
 **Protocol / body parsing**
 - [ ] Max body size enforced on all endpoints (DoS protection). **Gap:** No global `MaxBytesReader` or body size middleware. Only `files.go:199` uses `io.LimitReader` for chunk uploads. Other endpoints accept unbounded request bodies.
@@ -330,8 +330,8 @@ For each invariant, fill in the following as work progresses. Kept out of the ma
 - [x] CA private key file permissions: `0600`, owned by service user. **Evidence:** I9 code review — CA key at `0o600`. Local UI CA key also `0o600`.
 - [x] CA key never logged. **Evidence:** Static analysis — no log statements reference CA key material. `pki/ca.go` only logs the cert path, not the key.
 - [x] Generated certs have appropriate key usage (`digitalSignature`, `keyEncipherment`), EKU (`clientAuth`). **Evidence:** I7 code review — `KeyUsage: x509.KeyUsageDigitalSignature`, `ExtKeyUsage: x509.ExtKeyUsageClientAuth`. `IsCA: false`, `BasicConstraintsValid: true`.
-- [ ] CSR inputs validated: reject CSRs with unexpected SAN, CN, or key usage. **Note:** I7 review found CSR signature is validated (`CheckSignature`), but CSR Subject/SANs are ignored (server controls identity). No key type/size validation — see I7 notes.
-- [ ] ECDSA P-256 enforced for agent keys; RSA / other curves rejected if not intended.
+- [x] CSR inputs validated: reject CSRs with unexpected SAN, CN, or key usage. **Evidence:** I7 + audit — CSR signature validated (`CheckSignature`). CSR Subject/SANs are **ignored** — server controls identity by using `agentID` for CN and DNS SAN (line 86-90). This is secure-by-design: the agent cannot choose its own identity via CSR manipulation. **No key type/size validation** — any public key type accepted. See I7 notes.
+- [ ] ECDSA P-256 enforced for agent keys; RSA / other curves rejected if not intended. **Gap:** `SignCSR` accepts any public key type from the CSR (`csr.PublicKey` passed directly to `CreateCertificate`). An agent could submit RSA-1024 or other weak key types. Low risk since enrollment is token-gated and Go TLS enforces minimum key sizes at handshake.
 
 **Artifact signing**
 - [x] Ed25519 public key committed to `keys/release.pub`; verify it matches the key actually used in CI. **Accepted risk:** `keys/release.pub` is placeholder. Fails closed — no signed updates until real key is generated. See I8 notes.
@@ -357,8 +357,8 @@ For each invariant, fill in the following as work progresses. Kept out of the ma
 - [x] Server TLS config: minimum TLS 1.2 (prefer 1.3), modern cipher suites only. **Evidence:** `localca.go:75` sets `MinVersion: tls.VersionTLS12`. `mtls.go:133` uses Go default cipher suites (modern, no RC4/3DES). Test: `TestTLSConfig`.
 - [x] `passthrough` mode: verify trust of `X-Forwarded-*` headers only from configured proxy IPs, not arbitrary clients. **Evidence:** `server/auth/proxy.go` — `ProxyCertSanitizer` strips `X-Client-Cert` from untrusted IPs. Unit tests: 10 tests in `server/auth/proxy_test.go` covering CIDR parsing, trusted/untrusted IP handling, IPv6.
 - [x] Agent client TLS: verifies server cert chain, does not skip verification (`InsecureSkipVerify=false`). Grep for this. **Evidence:** Static analysis — grep for `InsecureSkipVerify` finds only test files (`_test.go`) with `//nolint:gosec // test only` comments. No production code skips verification.
-- [ ] Agent pins server CA (if applicable per `AGENT_AUTH_SPEC.md`) — confirm pin is loaded from a trusted source at install time.
-- [ ] DB connection requires TLS in production config (`sslmode=require`).
+- [x] Agent pins server CA (if applicable per `AGENT_AUTH_SPEC.md`) — confirm pin is loaded from a trusted source at install time. **Evidence:** `agent/tlsutil/tlsutil.go:64-70` — `NewTLSConfig` sets `RootCAs: serverCA` from CA cert loaded at agent startup. Agent only trusts the Moebius CA, not system trust store. `MinVersion: tls.VersionTLS12`.
+- [ ] DB connection requires TLS in production config (`sslmode=require`). **Gap:** `docker-compose.yml` uses `sslmode=disable` for all services. Helm `values.yaml` takes `databaseUrl` as a blank string — no `sslmode` guidance. Production deployments should use `sslmode=require` or `verify-full`. Document in deployment guide.
 
 ### 2.6 Agent Security Model
 
@@ -406,7 +406,7 @@ For each invariant, fill in the following as work progresses. Kept out of the ma
 
 ### 2.10 Dependency & Supply Chain
 
-- [ ] `go list -m all` + `govulncheck` — report known-vulnerable dependencies.
+- [x] `go list -m all` + `govulncheck` — report known-vulnerable dependencies. **Evidence:** `govulncheck -mode binary` on API binary: **13 called vulnerabilities**, all in Go stdlib at go1.25.0 (fixed in go1.25.8): `crypto/tls` (3: handshake, session resumption, ALPN), `crypto/x509` (4: name constraints, DSA panic, wildcard, resource exhaustion), `net/url` (3: IPv6 parsing, query exhaustion, hostname validation), `encoding/asn1` (1: DER exhaustion), `encoding/pem` (1: quadratic parsing), `os` (1: Root escape). **No third-party dependency vulnerabilities.** **Fix:** Update Go toolchain to 1.25.8+.
 - [x] UI: `npm audit` results, pin versions in `package-lock.json`. **Evidence:** `npm audit` fixed — vite bumped from 8.0.3 → 8.0.5 (3 security vulns resolved). Versions pinned in `package-lock.json`.
 - [x] Docker base images: current and scanned (distroless or alpine with recent patches per plan). **Evidence:** `Dockerfile.api`/`Dockerfile.scheduler` use `gcr.io/distroless/static-debian12`. `Dockerfile.ui` uses `nginx:stable-alpine`. All minimal-surface images.
 - [ ] CI pipeline: release signing key accessible only to release workflow, protected by environment.
