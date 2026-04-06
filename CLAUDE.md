@@ -67,7 +67,7 @@ make fmt-check      # Check formatting (CI)
 make test-cover     # Tests with coverage report
 make build-agent-all  # Cross-compile agent for linux/{amd64,arm64}, windows/amd64
 make build-server-all # Cross-compile server binaries for linux/{amd64,arm64}
-make docker-build   # Build Docker images for api, scheduler
+make docker-build   # Build Docker images for api, scheduler, ui
 make clean          # Remove build artifacts
 ```
 
@@ -81,7 +81,6 @@ Version is injected at build time via `-ldflags` from `shared/version` package.
 **Server core packages (Phase 2):**
 - `server/config` — env var config loading with per-process validation
 - `server/store` — pgxpool wrapper (repository methods added per phase)
-- `server/natsutil` — NATS JetStream client, stream setup, subject helpers
 - `server/logging` — slog-based structured logging (JSON/text, configurable level)
 - `server/metrics` — Prometheus metric definitions (counters, gauges, histograms)
 - `server/health` — liveness (`/health`) and readiness (`/health/ready`) HTTP handlers
@@ -99,4 +98,4 @@ Version is injected at build time via `-ldflags` from `shared/version` package.
 - `server/api/agent_jobs.go` — `POST /v1/agents/jobs/{job_id}/acknowledge` and `.../result` (mTLS). Result handler stores to `job_results`, auto-retries via new linked job with `parent_job_id`.
 - `agent/executor/` — receives jobs from poller, acknowledges, executes (`exec` type: shell with timeout), reports results. Wired into `agent/cmd/agent/main.go` via `exec.HandleJob` as poller's `JobHandler`.
 
-**Stack:** Go, PostgreSQL, NATS JetStream. Migrations in `deploy/migrations/`. Docker images in `deploy/docker/`.
+**Stack:** Go, PostgreSQL. Migrations in `deploy/migrations/`. Docker images in `deploy/docker/`.

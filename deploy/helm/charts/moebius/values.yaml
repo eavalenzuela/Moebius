@@ -52,26 +52,22 @@ scheduler:
     REAPER_DISPATCHED_TIMEOUT_SECONDS: "300"
     REAPER_INFLIGHT_TIMEOUT_SECONDS: "3600"
 
-nats:
-  external: false
-  externalUrl: ""
-  cluster:
-    enabled: true
-    replicas: 3
+ui:
+  replicaCount: 2
   image:
-    repository: nats
-    tag: "2-alpine"
+    repository: moebius-ui
+    tag: ""
     pullPolicy: IfNotPresent
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 50m
+      memory: 64Mi
     limits:
-      cpu: 500m
-      memory: 512Mi
-  storage:
-    size: 10Gi
-    storageClassName: ""
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    port: 80
 
 postgres:
   external: true

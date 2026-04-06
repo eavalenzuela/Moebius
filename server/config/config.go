@@ -8,12 +8,11 @@ import (
 )
 
 // Config holds all configuration for the server processes.
-// Shared fields are used by all three (api, worker, scheduler);
+// Shared fields are used by both (api, scheduler);
 // process-specific fields are only relevant to their respective binary.
 type Config struct {
 	// Shared
 	DatabaseURL string
-	NATSURL     string
 	LogLevel    string // debug, info, warn, error
 	LogFormat   string // json, text
 	TenantMode  string // single, multi
@@ -61,7 +60,6 @@ const (
 func Load(proc Process) (*Config, error) {
 	c := &Config{
 		DatabaseURL:                os.Getenv("DATABASE_URL"),
-		NATSURL:                    os.Getenv("NATS_URL"),
 		LogLevel:                   envOrDefault("LOG_LEVEL", "info"),
 		LogFormat:                  envOrDefault("LOG_FORMAT", "json"),
 		TenantMode:                 envOrDefault("TENANT_MODE", "multi"),
@@ -105,10 +103,6 @@ func (c *Config) validate(proc Process) error {
 	if c.DatabaseURL == "" {
 		missing = append(missing, "DATABASE_URL")
 	}
-
-	// NATS is unused since the Phase 6 inline-dispatch refactor. The
-	// NATSURL field is still read so existing deployments do not fail to
-	// boot, but we no longer require it.
 
 	// Validate enum values
 	switch c.LogLevel {

@@ -114,7 +114,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Build and push images
+      - name: Build and push server images
         run: |
           TAG=${GITHUB_REF_NAME#v}
           for component in api scheduler; do
@@ -128,13 +128,23 @@ jobs:
               --push .
           done
 
+      - name: Build and push UI image
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -f deploy/docker/Dockerfile.ui \
+            -t ${DOCKER_REGISTRY}/moebius-ui:${TAG} \
+            -t ${DOCKER_REGISTRY}/moebius-ui:latest \
+            --push .
+
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign container images with cosign
         run: |
           TAG=${GITHUB_REF_NAME#v}
-          for component in api scheduler; do
+          for component in api scheduler ui; do
             IMAGE="${DOCKER_REGISTRY}/moebius-${component}"
             # Get the image digest for signing
             DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{json .Manifest.Digest}}' | tr -d '"')

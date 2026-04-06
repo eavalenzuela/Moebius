@@ -32,8 +32,8 @@ func TestLiveness(t *testing.T) {
 
 func TestReadiness_AllHealthy(t *testing.T) {
 	h := New(map[string]Checker{
-		"db":   &mockChecker{},
-		"nats": &mockChecker{},
+		"db":    &mockChecker{},
+		"cache": &mockChecker{},
 	})
 	rr := httptest.NewRecorder()
 	h.Readiness(rr, httptest.NewRequest("GET", "/health/ready", http.NoBody))
@@ -45,8 +45,8 @@ func TestReadiness_AllHealthy(t *testing.T) {
 
 func TestReadiness_OneUnhealthy(t *testing.T) {
 	h := New(map[string]Checker{
-		"db":   &mockChecker{},
-		"nats": &mockChecker{err: errors.New("connection refused")},
+		"db":    &mockChecker{},
+		"cache": &mockChecker{err: errors.New("connection refused")},
 	})
 	rr := httptest.NewRecorder()
 	h.Readiness(rr, httptest.NewRequest("GET", "/health/ready", http.NoBody))
@@ -60,7 +60,7 @@ func TestReadiness_OneUnhealthy(t *testing.T) {
 	if body["db"] != "ok" {
 		t.Errorf("db = %q, want %q", body["db"], "ok")
 	}
-	if body["nats"] != "connection refused" {
-		t.Errorf("nats = %q, want %q", body["nats"], "connection refused")
+	if body["cache"] != "connection refused" {
+		t.Errorf("cache = %q, want %q", body["cache"], "connection refused")
 	}
 }

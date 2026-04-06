@@ -19,18 +19,3 @@ api:
 
 scheduler:
   replicaCount: 2
-
-nats:
-  external: false
-  cluster:
-    enabled: true
-    replicas: 3
-  resources:
-    requests:
-      cpu: 500m
-      memory: 512Mi
-    limits:
-      cpu: 2000m
-      memory: 2Gi
-  storage:
-    size: 50Gi

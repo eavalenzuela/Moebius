@@ -15,24 +15,14 @@ services:
       timeout: 5s
       retries: 5
 
-  nats:
-    image: nats:2-alpine
-    restart: unless-stopped
-    command: ["-js", "-sd", "/data"]
-    volumes:
-      - nats_data:/data
-
   api:
     image: ghcr.io/eavalenzuela/moebius-api:${VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      nats:
-        condition: service_started
     environment:
       DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
-      NATS_URL: nats://nats:4222
       HTTP_PORT: "8080"
       TLS_MODE: passthrough
       CA_KEY_PATH: /certs/intermediate-ca.key
@@ -61,6 +51,10 @@ services:
       REAPER_DISPATCHED_TIMEOUT_SECONDS: ${REAPER_DISPATCHED_TIMEOUT_SECONDS:-300}
       REAPER_INFLIGHT_TIMEOUT_SECONDS: ${REAPER_INFLIGHT_TIMEOUT_SECONDS:-3600}
 
+  ui:
+    image: ghcr.io/eavalenzuela/moebius-ui:${VERSION:-latest}
+    restart: unless-stopped
+
   proxy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -73,10 +67,10 @@ services:
       - caddy_config:/config
     depends_on:
       - api
+      - ui
 
 volumes:
   postgres_data:
-  nats_data:
   file_data:
   caddy_data:
   caddy_config:

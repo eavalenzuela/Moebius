@@ -138,7 +138,7 @@ DOCKER_REGISTRY ?= ghcr.io/eavalenzuela
 DOCKER_TAG      ?= $(VERSION)
 
 .PHONY: docker-build
-docker-build: docker-build-api docker-build-scheduler ## Build all Docker images
+docker-build: docker-build-api docker-build-scheduler docker-build-ui ## Build all Docker images
 
 .PHONY: docker-build-api
 docker-build-api:
@@ -148,10 +148,15 @@ docker-build-api:
 docker-build-scheduler:
 	docker build -f deploy/docker/Dockerfile.scheduler -t $(DOCKER_REGISTRY)/moebius-scheduler:$(DOCKER_TAG) .
 
+.PHONY: docker-build-ui
+docker-build-ui:
+	docker build -f deploy/docker/Dockerfile.ui -t $(DOCKER_REGISTRY)/moebius-ui:$(DOCKER_TAG) .
+
 .PHONY: docker-push
 docker-push: ## Push all Docker images
 	docker push $(DOCKER_REGISTRY)/moebius-api:$(DOCKER_TAG)
 	docker push $(DOCKER_REGISTRY)/moebius-scheduler:$(DOCKER_TAG)
+	docker push $(DOCKER_REGISTRY)/moebius-ui:$(DOCKER_TAG)
 
 # ─── Clean ──────────────────────────────────────────────
 

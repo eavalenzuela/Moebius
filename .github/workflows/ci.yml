@@ -72,15 +72,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      nats:
-        image: nats:2-alpine
-        ports:
-          - 4222:4222
-        options: >-
-          --health-cmd "true"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       MOEBIUS_DB_HOST: localhost
       MOEBIUS_DB_PORT: "5432"
@@ -88,7 +79,6 @@ jobs:
       MOEBIUS_DB_PASSWORD: moebius
       MOEBIUS_DB_NAME: moebius_test
       MOEBIUS_DB_SSLMODE: disable
-      MOEBIUS_NATS_URL: nats://localhost:4222
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6

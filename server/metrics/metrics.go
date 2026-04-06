@@ -35,8 +35,8 @@ var (
 
 	JobQueueDepth = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "job_queue_depth",
-		Help: "Current NATS queue depth.",
-	}, []string{"stream"})
+		Help: "Current job queue depth.",
+	}, []string{"status"})
 
 	FileTransferBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "file_transfer_bytes_total",
