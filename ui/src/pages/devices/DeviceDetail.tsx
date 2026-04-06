@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useFetch } from '../../hooks/useApi';
-import { api } from '../../api/client';
 import StatusBadge from '../../components/StatusBadge';
 import TimeAgo from '../../components/TimeAgo';
 import type { Device, DeviceInventory, Job, DeviceLog, PaginatedResponse } from '../../types/api';

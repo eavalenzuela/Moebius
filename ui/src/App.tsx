@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './auth/AuthContext';
+import AuthProvider from './auth/AuthContext';
+import { useAuth } from './auth/useAuth';
 import LoginPage from './auth/LoginPage';
 import Layout from './components/Layout';
 import DeviceList from './pages/devices/DeviceList';

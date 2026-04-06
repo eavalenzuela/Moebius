@@ -1,22 +1,40 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { api } from '../api/client';
 
+interface FetchState<T> {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+}
+
 export function useFetch<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(!!path);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<FetchState<T>>({
+    data: null,
+    loading: !!path,
+    error: null,
+  });
+  const [fetchKey, setFetchKey] = useState(0);
+  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!path) return;
+    let cancelled = false;
+    startTransition(() => {
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+    });
+    api.get<T>(path)
+      .then((result) => {
+        if (!cancelled) setState({ data: result, loading: false, error: null });
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setState((prev) => ({ ...prev, loading: false, error: e.message }));
+      });
+    return () => { cancelled = true; };
+  }, [path, fetchKey]);
 
   const refetch = useCallback(() => {
-    if (!path) return;
-    setLoading(true);
-    setError(null);
-    api.get<T>(path)
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [path]);
+    setFetchKey((k) => k + 1);
+  }, []);
 
-  useEffect(() => { refetch(); }, [refetch]);
-
-  return { data, loading, error, refetch };
+  return { ...state, refetch };
 }
