@@ -437,7 +437,7 @@ func (h *testHarness) enrollAgent(hostname string) (agentID string, certPEM, key
 		"agent_version":    "1.0.0",
 	}
 	b, _ := json.Marshal(body)
-	resp, err := http.Post(h.apiURL+"/v1/agents/enroll", "application/json", bytes.NewReader(b))
+	resp, err := h.httpClient.Post(h.apiURL+"/v1/agents/enroll", "application/json", bytes.NewReader(b))
 	if err != nil {
 		h.t.Fatalf("enroll request: %v", err)
 	}

@@ -69,6 +69,12 @@ func (h *APIKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only admins can create admin keys
+	if req.IsAdmin && !auth.IsAdminFromContext(r.Context()) {
+		Error(w, http.StatusForbidden, "only admin keys can create admin keys")
+		return
+	}
+
 	rawKey := generateAPIKey()
 	hash := sha256.Sum256([]byte(rawKey))
 
