@@ -62,6 +62,30 @@ func (s *Store) CreateAPIKey(ctx context.Context, k *models.APIKey) error {
 	return nil
 }
 
+// GetAPIKey returns metadata for a single API key (without the hash).
+// Returns (nil, nil) if no row matches in the tenant.
+func (s *Store) GetAPIKey(ctx context.Context, tenantID, keyID string) (*models.APIKey, error) {
+	var k models.APIKey
+	var scopeJSON []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, tenant_id, user_id, name, role_id, scope, is_admin, last_used_at, expires_at, created_at
+		 FROM api_keys WHERE id = $1 AND tenant_id = $2`,
+		keyID, tenantID,
+	).Scan(&k.ID, &k.TenantID, &k.UserID, &k.Name, &k.RoleID,
+		&scopeJSON, &k.IsAdmin, &k.LastUsedAt, &k.ExpiresAt, &k.CreatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get api key: %w", err)
+	}
+	if scopeJSON != nil {
+		k.Scope = &models.APIScope{}
+		_ = json.Unmarshal(scopeJSON, k.Scope)
+	}
+	return &k, nil
+}
+
 // DeleteAPIKey revokes (deletes) an API key.
 func (s *Store) DeleteAPIKey(ctx context.Context, tenantID, keyID string) error {
 	tag, err := s.pool.Exec(ctx,

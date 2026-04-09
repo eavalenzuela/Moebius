@@ -73,6 +73,18 @@ func (h *RolesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Privilege escalation guard: a non-admin caller cannot mint a role
+	// with permissions they do not themselves hold. Admins (is_admin=true)
+	// bypass this since they have implicit access to every permission.
+	if !auth.IsAdminFromContext(r.Context()) {
+		callerPerms := auth.PermissionsFromContext(r.Context())
+		if !auth.PermissionsSubset(callerPerms, req.Permissions) {
+			ErrorWithCode(w, http.StatusForbidden, "permission_escalation",
+				"cannot grant permissions you do not hold")
+			return
+		}
+	}
+
 	role := &models.Role{
 		ID:          models.NewRoleID(),
 		TenantID:    tenantID,
@@ -132,6 +144,18 @@ func (h *RolesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		existing.Name = req.Name
 	}
 	if len(req.Permissions) > 0 {
+		// Same escalation guard as Create — non-admins cannot widen a
+		// custom role's permissions beyond their own. Without this check
+		// any user with `roles:write` could overwrite an existing role
+		// with `permissions: [<everything>]`.
+		if !auth.IsAdminFromContext(r.Context()) {
+			callerPerms := auth.PermissionsFromContext(r.Context())
+			if !auth.PermissionsSubset(callerPerms, req.Permissions) {
+				ErrorWithCode(w, http.StatusForbidden, "permission_escalation",
+					"cannot grant permissions you do not hold")
+				return
+			}
+		}
 		existing.Permissions = req.Permissions
 	}
 

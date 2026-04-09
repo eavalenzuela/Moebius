@@ -194,11 +194,17 @@ func (h *FilesHandler) UploadChunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read chunk body and verify SHA-256
+	// Read chunk body and verify SHA-256.
+	// http.MaxBytesReader (vs io.LimitReader) returns a real error when the
+	// caller exceeds the cap instead of silently truncating, so an oversized
+	// chunk surfaces as a 400 here rather than a confusing checksum mismatch.
+	// The router-level MaxBytes(MaxBodyBytesFileChunk) provides the outer
+	// guard; this inner cap pins the limit to defaultChunkSize+1 specifically.
 	expectedHash := r.Header.Get("X-Chunk-SHA256")
-	body, err := io.ReadAll(io.LimitReader(r.Body, int64(defaultChunkSize)+1))
+	r.Body = http.MaxBytesReader(w, r.Body, int64(defaultChunkSize)+1)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		Error(w, http.StatusBadRequest, "failed to read chunk data")
+		Error(w, http.StatusBadRequest, "chunk exceeds maximum size")
 		return
 	}
 

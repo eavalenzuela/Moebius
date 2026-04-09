@@ -406,11 +406,58 @@ func (h *testHarness) createEnrollmentToken() string {
 	return result.Raw
 }
 
-// enrollAgent performs the full enrollment flow and returns agentID, cert, key.
+// enrollAgent performs the full enrollment flow with a fresh unscoped token
+// and returns agentID, cert, key.
 func (h *testHarness) enrollAgent(hostname string) (agentID string, certPEM, keyPEM []byte) {
 	h.t.Helper()
-
 	token := h.createEnrollmentToken()
+	return h.enrollAgentFull(hostname, token)
+}
+
+// enrollAgentWithToken enrolls a host with a caller-supplied token (e.g. one
+// minted with a specific scope). Returns just the agent ID.
+func (h *testHarness) enrollAgentWithToken(hostname, rawToken string) string {
+	h.t.Helper()
+	agentID, _, _ := h.enrollAgentFull(hostname, rawToken)
+	return agentID
+}
+
+// tryEnrollAgent runs the enrollment HTTP request and returns the status code
+// without failing the test. Used by negative tests that expect non-200.
+func (h *testHarness) tryEnrollAgent(hostname, rawToken string) int {
+	h.t.Helper()
+
+	agentKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		h.t.Fatalf("generate agent key: %v", err)
+	}
+	csrTemplate := &x509.CertificateRequest{Subject: pkix.Name{CommonName: hostname}}
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, agentKey)
+	if err != nil {
+		h.t.Fatalf("create CSR: %v", err)
+	}
+	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+
+	body := map[string]string{
+		"enrollment_token": rawToken,
+		"csr":              string(csrPEM),
+		"hostname":         hostname,
+		"os":               "linux",
+		"os_version":       "Ubuntu 24.04",
+		"arch":             "amd64",
+		"agent_version":    "1.0.0",
+	}
+	b, _ := json.Marshal(body)
+	resp, err := h.httpClient.Post(h.apiURL+"/v1/agents/enroll", "application/json", bytes.NewReader(b))
+	if err != nil {
+		h.t.Fatalf("enroll request: %v", err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
+func (h *testHarness) enrollAgentFull(hostname, rawToken string) (agentID string, certPEM, keyPEM []byte) {
+	h.t.Helper()
 
 	// Generate agent key + CSR
 	agentKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -428,7 +475,7 @@ func (h *testHarness) enrollAgent(hostname string) (agentID string, certPEM, key
 
 	// POST /v1/agents/enroll (unauthenticated)
 	body := map[string]string{
-		"enrollment_token": token,
+		"enrollment_token": rawToken,
 		"csr":              string(csrPEM),
 		"hostname":         hostname,
 		"os":               "linux",

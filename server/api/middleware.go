@@ -68,6 +68,56 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+// Body-size limits (DoS protection). The constants below cap how much
+// memory a single request can force the server to allocate before any
+// handler logic runs.
+//
+// chi composes middleware outside-in, so when a route is wrapped by
+// multiple MaxBytes layers the innermost (most restrictive) wins. The
+// global root cap is therefore set to the largest legitimate body any
+// endpoint accepts; per-route overrides clamp it down on the few
+// endpoints that need to be even tighter than the global default.
+const (
+	// MaxBodyBytesGlobal is the absolute upper bound for any HTTP request
+	// body the server accepts. Sized just above the largest legitimate
+	// body (~5 MB chunk upload + HTTP overhead).
+	MaxBodyBytesGlobal int64 = 8 * 1024 * 1024 // 8 MB
+
+	// MaxBodyBytesJSON caps ordinary JSON CRUD endpoints when applied
+	// per-route. Big enough for bulk inserts but tight enough that a
+	// caller cannot exhaust memory with a single absurd JSON payload.
+	MaxBodyBytesJSON int64 = 1 * 1024 * 1024 // 1 MB
+
+	// MaxBodyBytesAgentInventory caps an agent check-in payload. Inventory
+	// lists (installed packages, hardware) can be large; 4 MB is generous
+	// for tens of thousands of entries while still bounding worst-case.
+	MaxBodyBytesAgentInventory int64 = 4 * 1024 * 1024 // 4 MB
+
+	// MaxBodyBytesAgentLogs caps a single agent log shipment.
+	MaxBodyBytesAgentLogs int64 = 4 * 1024 * 1024 // 4 MB
+
+	// MaxBodyBytesFileChunk caps a single chunk PUT. Must accommodate the
+	// 5 MB defaultChunkSize plus a small slack for HTTP overhead.
+	MaxBodyBytesFileChunk int64 = 6 * 1024 * 1024 // 6 MB
+)
+
+// MaxBytes returns a middleware that caps r.Body at n bytes via
+// http.MaxBytesReader. Reads beyond n yield 413 Payload Too Large from
+// the underlying reader; handlers that decode JSON will surface the
+// limit as a decode error and return 400 — that's acceptable. The
+// middleware itself does not pre-emptively check Content-Length so it
+// catches both honest oversized clients and chunked-encoding attackers.
+func MaxBytes(n int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, n)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // ParsePagination extracts limit and cursor from query parameters.
 // Returns validated limit (default 50, max 500) and cursor string.
 func ParsePagination(r *http.Request) (limit int, cursor string) {

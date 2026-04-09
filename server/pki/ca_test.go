@@ -2,12 +2,15 @@ package pki
 
 import (
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 )
@@ -175,6 +178,60 @@ func TestSignCSR_InvalidCSR(t *testing.T) {
 	_, _, _, err := intCA.SignCSR([]byte("not a PEM"), "dev_test", 90*24*time.Hour)
 	if err == nil {
 		t.Error("expected error for invalid CSR PEM")
+	}
+}
+
+// generateCSRWithKey builds a CSR signed by the supplied private key, used
+// to drive the rejection paths in TestSignCSR_RejectsNonP256Keys. The
+// upstream helper hardcodes ECDSA P-256, which is exactly what we need to
+// bypass here.
+func generateCSRWithKey(t *testing.T, key interface{}) []byte {
+	t.Helper()
+	template := &x509.CertificateRequest{
+		Subject: pkix.Name{CommonName: "agent-test"},
+	}
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, template, key)
+	if err != nil {
+		t.Fatalf("create CSR: %v", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+}
+
+func TestSignCSR_RejectsNonP256Keys(t *testing.T) {
+	_, intCA := mustGenerateRootAndIntermediate(t)
+
+	rsa2048, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa keygen: %v", err)
+	}
+	ecP384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatalf("p384 keygen: %v", err)
+	}
+	_, edPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("ed25519 keygen: %v", err)
+	}
+
+	cases := []struct {
+		name      string
+		csr       []byte
+		errSubstr string
+	}{
+		{"rsa2048", generateCSRWithKey(t, rsa2048), "unsupported public key type"},
+		{"ecdsa_p384", generateCSRWithKey(t, ecP384), "unsupported ECDSA curve"},
+		{"ed25519", generateCSRWithKey(t, edPriv), "unsupported public key type"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, _, err := intCA.SignCSR(tc.csr, "dev_test", 90*24*time.Hour)
+			if err == nil {
+				t.Fatal("expected SignCSR to reject non-P256 key, got nil error")
+			}
+			if !strings.Contains(err.Error(), tc.errSubstr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.errSubstr)
+			}
+		})
 	}
 }
 

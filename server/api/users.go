@@ -134,6 +134,34 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Self-promotion guard: a non-admin caller cannot edit their own role
+	// at all (changing it always carries escalation risk — even "demoting"
+	// could remove a sibling check), and cannot assign a role whose
+	// permission set exceeds the caller's own. Admins bypass both.
+	if !auth.IsAdminFromContext(r.Context()) {
+		if userID == actorID {
+			ErrorWithCode(w, http.StatusForbidden, "self_role_change",
+				"cannot change your own role")
+			return
+		}
+		targetRole, err := h.store.GetRole(r.Context(), tenantID, req.RoleID)
+		if err != nil {
+			Error(w, http.StatusInternalServerError, "failed to load target role")
+			return
+		}
+		if targetRole == nil {
+			ErrorWithCode(w, http.StatusBadRequest, "role_not_found",
+				"the requested role does not exist in this tenant")
+			return
+		}
+		callerPerms := auth.PermissionsFromContext(r.Context())
+		if !auth.PermissionsSubset(callerPerms, targetRole.Permissions) {
+			ErrorWithCode(w, http.StatusForbidden, "permission_escalation",
+				"cannot assign a role with more permissions than your own")
+			return
+		}
+	}
+
 	if err := h.store.UpdateUserRole(r.Context(), tenantID, userID, req.RoleID); err != nil {
 		ErrorWithCode(w, http.StatusNotFound, "user_not_found", err.Error())
 		return

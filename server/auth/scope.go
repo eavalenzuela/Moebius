@@ -231,6 +231,55 @@ func anyInSet(candidates, allowed []string) bool {
 	return false
 }
 
+// ValidateScopeTenant checks that every group/tag/site/device ID referenced in
+// the scope belongs to the given tenant. Returns an error naming the first
+// offending ID. A nil scope is always valid (unrestricted).
+//
+// Used at token-creation and similar choke points to prevent operators from
+// embedding cross-tenant IDs in a scope, which would otherwise pass FK checks
+// but produce cross-tenant pollution downstream.
+func ValidateScopeTenant(ctx context.Context, pool *pgxpool.Pool, tenantID string, scope *models.APIScope) error {
+	if scope == nil {
+		return nil
+	}
+
+	check := func(table, id string) error {
+		// Table names are hardcoded constants below — never user input —
+		// so the fmt.Sprintf is safe from SQL injection.
+		query := fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s WHERE id = $1 AND tenant_id = $2)`, table)
+		var ok bool
+		if err := pool.QueryRow(ctx, query, id, tenantID).Scan(&ok); err != nil {
+			return fmt.Errorf("validate %s %s: %w", table, id, err)
+		}
+		if !ok {
+			return fmt.Errorf("%s %s not found in tenant", table, id)
+		}
+		return nil
+	}
+
+	for _, id := range scope.GroupIDs {
+		if err := check("groups", id); err != nil {
+			return err
+		}
+	}
+	for _, id := range scope.TagIDs {
+		if err := check("tags", id); err != nil {
+			return err
+		}
+	}
+	for _, id := range scope.SiteIDs {
+		if err := check("sites", id); err != nil {
+			return err
+		}
+	}
+	for _, id := range scope.DeviceIDs {
+		if err := check("devices", id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // IDInScopeField returns true if the given ID is listed in the scope's field.
 // If the scope is nil or the field is empty, returns true (unrestricted).
 func IDInScopeField(scope *models.APIScope, field, id string) bool {

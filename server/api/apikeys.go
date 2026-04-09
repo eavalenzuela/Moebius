@@ -115,6 +115,24 @@ func (h *APIKeysHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
 	keyID := chi.URLParam(r, "key_id")
 
+	// Admin-protection: only an admin caller may delete an admin key.
+	// Without this, any caller with `api_keys:write` could revoke the
+	// bootstrap admin key and lock the tenant out of recovery.
+	target, err := h.store.GetAPIKey(r.Context(), tenantID, keyID)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to load api key")
+		return
+	}
+	if target == nil {
+		ErrorWithCode(w, http.StatusNotFound, "api_key_not_found", "No API key with the given ID exists")
+		return
+	}
+	if target.IsAdmin && !auth.IsAdminFromContext(r.Context()) {
+		ErrorWithCode(w, http.StatusForbidden, "admin_key_protected",
+			"only an admin key can revoke another admin key")
+		return
+	}
+
 	if err := h.store.DeleteAPIKey(r.Context(), tenantID, keyID); err != nil {
 		ErrorWithCode(w, http.StatusNotFound, "api_key_not_found", "No API key with the given ID exists")
 		return

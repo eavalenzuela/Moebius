@@ -157,6 +157,51 @@ func TestRBAC_OperatorCanManageMostButNotUsersOrRoles(t *testing.T) {
 	resp.Body.Close()
 }
 
+func TestRBAC_TenantAdminHasFullTenantAccess(t *testing.T) {
+	h := newHarness(t)
+
+	// Tenant Admin is permission-based, not is_admin=true. It should be able
+	// to reach every tenant-scoped endpoint via the canonical permission set
+	// declared in server/rbac/permissions.go.
+	tenantAdminKey := h.createAPIKeyWithPerms("tenant-admin", rbac.TenantAdminPermissions, false)
+
+	endpoints := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/v1/devices"},
+		{"GET", "/v1/jobs"},
+		{"GET", "/v1/users"},
+		{"GET", "/v1/roles"},
+		{"GET", "/v1/api-keys"},
+		{"GET", "/v1/groups"},
+		{"GET", "/v1/tags"},
+		{"GET", "/v1/sites"},
+		{"GET", "/v1/tenant"},
+		{"GET", "/v1/audit-log"},
+		{"GET", "/v1/signing-keys"},
+		{"GET", "/v1/alert-rules"},
+		{"GET", "/v1/scheduled-jobs"},
+		{"GET", "/v1/agent-versions"},
+		{"GET", "/v1/enrollment-tokens"},
+	}
+
+	for _, ep := range endpoints {
+		resp := h.apiRequestWithKey(tenantAdminKey, ep.method, ep.path, nil)
+		if resp.StatusCode == http.StatusForbidden {
+			t.Errorf("tenant admin got 403 on %s %s", ep.method, ep.path)
+		}
+		resp.Body.Close()
+	}
+
+	// Tenant admin can mint enrollment tokens (a write op)
+	resp := h.apiRequestWithKey(tenantAdminKey, "POST", "/v1/enrollment-tokens", map[string]any{})
+	if resp.StatusCode == http.StatusForbidden {
+		t.Errorf("tenant admin should be able to create enrollment tokens, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
 func TestRBAC_AdminBypassesAll(t *testing.T) {
 	h := newHarness(t)
 

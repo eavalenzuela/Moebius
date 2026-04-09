@@ -66,6 +66,15 @@ func (h *EnrollmentTokensHandler) Create(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// Tenant validation: every group/tag/site/device ID in scope must belong
+	// to the operator's tenant. The subset check above only protects against
+	// scope expansion within a tenant; without this, an admin could embed a
+	// foreign-tenant ID and pollute device_groups with cross-tenant rows.
+	if err := auth.ValidateScopeTenant(r.Context(), h.pool, tenantID, req.Scope); err != nil {
+		ErrorWithCode(w, http.StatusBadRequest, "invalid_scope", err.Error())
+		return
+	}
+
 	expiry := 24 * time.Hour
 	if req.ExpiresInSeconds > 0 {
 		expiry = time.Duration(req.ExpiresInSeconds) * time.Second

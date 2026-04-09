@@ -74,6 +74,9 @@ func (ca *CA) SignCSR(csrPEM []byte, agentID string, validity time.Duration) (ce
 	if err := csr.CheckSignature(); err != nil {
 		return nil, "", "", fmt.Errorf("CSR signature invalid: %w", err)
 	}
+	if err := validateAgentPublicKey(csr.PublicKey); err != nil {
+		return nil, "", "", err
+	}
 
 	serial, err := randomSerial()
 	if err != nil {
@@ -175,6 +178,27 @@ func GenerateCA(cn string, isRoot bool, parent *CA) (certPEM, keyPEM []byte, err
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 	return certPEM, keyPEM, nil
+}
+
+// validateAgentPublicKey enforces that an agent CSR carries an ECDSA P-256
+// public key. We deliberately reject everything else: RSA (any size) costs
+// significantly more CPU per TLS handshake and gives no security benefit at
+// the sizes a constrained agent would actually generate; non-P256 ECDSA
+// curves (P-224, P-384, P-521) are unnecessary, drag in extra cipher-suite
+// negotiation, and are not what the agent's own keygen produces; Ed25519 is
+// not yet on the agent side and would silently bypass key-strength checks.
+//
+// Locking this to P-256 keeps the entire fleet on a single, well-tested key
+// type that matches what the CA itself uses (see GenerateCA).
+func validateAgentPublicKey(pub interface{}) error {
+	ecKey, ok := pub.(*ecdsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("unsupported public key type %T: only ECDSA P-256 is accepted", pub)
+	}
+	if ecKey.Curve != elliptic.P256() {
+		return fmt.Errorf("unsupported ECDSA curve %q: only P-256 is accepted", ecKey.Curve.Params().Name)
+	}
+	return nil
 }
 
 func randomSerial() (*big.Int, error) {

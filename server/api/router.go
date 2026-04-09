@@ -51,6 +51,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	// Global middleware
 	r.Use(RequestID)
 	r.Use(MetricsMiddleware)
+	// Global body-size cap (DoS protection). Sized for the largest
+	// legitimate body any endpoint accepts (chunk upload, agent
+	// inventory). Per-route overrides clamp this down where the
+	// expected body is smaller — chi composes middleware outside-in,
+	// so the inner per-route limit wins.
+	r.Use(MaxBytes(MaxBodyBytesGlobal))
 	if cfg.PerIPLimiter != nil {
 		r.Use(ratelimit.PerIPMiddleware(cfg.PerIPLimiter))
 	}
@@ -94,21 +100,25 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			r.Use(ratelimit.PerTenantMiddleware(cfg.PerTenantLimiter))
 		}
 		renewHandler := NewRenewHandler(cfg.Pool, cfg.CA, cfg.Audit, cfg.Log)
-		r.Post("/renew", renewHandler.ServeHTTP)
+		r.With(MaxBytes(MaxBodyBytesJSON)).Post("/renew", renewHandler.ServeHTTP)
 
+		// Check-in carries inventory deltas — needs the larger inventory cap.
 		checkinHandler := NewCheckinHandler(cfg.Pool, cfg.Audit, cfg.Log)
+		checkinChain := []func(http.Handler) http.Handler{MaxBytes(MaxBodyBytesAgentInventory)}
 		if cfg.PerAgentCheckinLimiter != nil {
-			r.With(ratelimit.PerAgentMiddleware(cfg.PerAgentCheckinLimiter)).Post("/checkin", checkinHandler.ServeHTTP)
-		} else {
-			r.Post("/checkin", checkinHandler.ServeHTTP)
+			checkinChain = append(checkinChain, ratelimit.PerAgentMiddleware(cfg.PerAgentCheckinLimiter))
 		}
+		r.With(checkinChain...).Post("/checkin", checkinHandler.ServeHTTP)
 
 		agentJobs := NewAgentJobsHandler(cfg.Pool, cfg.Audit, cfg.Log)
-		r.Post("/jobs/{job_id}/acknowledge", agentJobs.Acknowledge)
-		r.Post("/jobs/{job_id}/result", agentJobs.SubmitResult)
+		r.With(MaxBytes(MaxBodyBytesJSON)).Post("/jobs/{job_id}/acknowledge", agentJobs.Acknowledge)
+		// Job result bodies can include captured stdout/stderr — bound at
+		// inventory size since command output may be substantial.
+		r.With(MaxBytes(MaxBodyBytesAgentInventory)).Post("/jobs/{job_id}/result", agentJobs.SubmitResult)
 
+		// Log shipments are larger than CRUD JSON — apply the log cap.
 		logsHandler := NewLogsHandler(cfg.Pool, cfg.Log)
-		r.Post("/logs", logsHandler.Ingest)
+		r.With(MaxBytes(MaxBodyBytesAgentLogs)).Post("/logs", logsHandler.Ingest)
 
 		filesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
 		r.Get("/files/{file_id}/download", filesH.Download)
@@ -132,6 +142,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if cfg.PerTenantLimiter != nil {
 			r.Use(ratelimit.PerTenantMiddleware(cfg.PerTenantLimiter))
 		}
+		// Body-size: every route inside /v1 inherits the global 8 MB cap
+		// from the chi root. Routes whose handlers genuinely need tighter
+		// limits should opt in via `r.With(MaxBytes(N))` per-route — chi
+		// forbids `r.Use(...)` after routes are registered, so we cannot
+		// stack a tighter `/v1`-wide cap here without restructuring all
+		// child routes into a Group. The chunk upload already wraps
+		// `r.Body` with its own `http.MaxBytesReader(defaultChunkSize+1)`
+		// inside the handler.
 
 		// Roles
 		roles := NewRolesHandler(cfg.Store, cfg.Audit)
@@ -215,13 +233,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermSigningKeysWrite)).Post("/signing-keys", sigKeys.Create)
 		r.With(rbac.Require(rbac.PermSigningKeysWrite)).Delete("/signing-keys/{key_id}", sigKeys.Delete)
 
-		// Files
+		// Files. The chunk upload PUT carries a binary chunk up to 5 MB
+		// plus HTTP overhead, so it gets a wider per-route MaxBytes cap
+		// than the global default. Other file endpoints take small JSON
+		// metadata bodies and inherit the global 8 MB cap.
 		filesAPI := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
 		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files", filesAPI.ListFiles)
 		r.With(rbac.Require(rbac.PermFilesWrite)).Post("/files", filesAPI.InitiateUpload)
 		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files/{file_id}", filesAPI.GetFile)
 		r.With(rbac.Require(rbac.PermFilesWrite)).Delete("/files/{file_id}", filesAPI.DeleteFile)
-		r.With(rbac.Require(rbac.PermFilesWrite)).Put("/files/uploads/{upload_id}/chunks/{chunk_index}", filesAPI.UploadChunk)
+		r.With(MaxBytes(MaxBodyBytesFileChunk), rbac.Require(rbac.PermFilesWrite)).
+			Put("/files/uploads/{upload_id}/chunks/{chunk_index}", filesAPI.UploadChunk)
 		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files/uploads/{upload_id}", filesAPI.UploadStatus)
 		r.With(rbac.Require(rbac.PermFilesWrite)).Post("/files/uploads/{upload_id}/complete", filesAPI.CompleteUpload)
 

@@ -52,6 +52,27 @@ func IsAdminFromContext(ctx context.Context) bool {
 	return v
 }
 
+// PermissionsSubset returns true if every permission in `requested` is also
+// present in `caller`. Used at choke points where a request would otherwise
+// let a caller hand out privileges they do not themselves possess
+// (role create/update, user role assignment). Admins bypass this check
+// at the call site, not here.
+func PermissionsSubset(caller, requested []string) bool {
+	if len(requested) == 0 {
+		return true
+	}
+	set := make(map[string]struct{}, len(caller))
+	for _, p := range caller {
+		set[p] = struct{}{}
+	}
+	for _, p := range requested {
+		if _, ok := set[p]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // APIKeyMiddleware authenticates requests via Bearer token.
 type APIKeyMiddleware struct {
 	pool *pgxpool.Pool
