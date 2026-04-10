@@ -86,7 +86,7 @@ func (h *SigningKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		"signing_key.create", "signing_key", key.ID, nil)
 
 	JSON(w, http.StatusCreated, key)
@@ -158,7 +158,7 @@ func (h *SigningKeysHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		"signing_key.delete", "signing_key", keyID, nil)
 
 	w.WriteHeader(http.StatusNoContent)

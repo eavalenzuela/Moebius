@@ -88,7 +88,7 @@ func (h *EnrollmentTokensHandler) Create(w http.ResponseWriter, r *http.Request)
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"enrollment_token.create", "enrollment_token", result.Token.ID, nil)
 	}
 
@@ -173,7 +173,7 @@ func (h *EnrollmentTokensHandler) Delete(w http.ResponseWriter, r *http.Request)
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"enrollment_token.delete", "enrollment_token", tokenID, nil)
 	}
 

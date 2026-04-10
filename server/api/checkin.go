@@ -94,7 +94,7 @@ func (h *CheckinHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			h.log.Info("marked update job as failed (agent rollback)",
 				slog.String("job_id", req.Status.LastUpdateJobID))
-			_ = h.audit.LogAction(ctx, tenantID, agentID, "agent",
+			h.audit.LogAction(ctx, tenantID, agentID, "agent",
 				"agent_update.rollback", "job", req.Status.LastUpdateJobID,
 				map[string]any{"error": req.Status.LastUpdateError})
 		}

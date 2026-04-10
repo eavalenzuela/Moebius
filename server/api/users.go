@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/eavalenzuela/Moebius/server/audit"
@@ -10,6 +12,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/store"
 	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // UsersHandler handles /v1/users endpoints.
@@ -104,7 +107,7 @@ func (h *UsersHandler) Invite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
 			"user.invite", "user", user.ID, map[string]string{
 				"email":   req.Email,
 				"role_id": req.RoleID,
@@ -168,7 +171,7 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
 			"user.update_role", "user", userID, map[string]string{
 				"role_id": req.RoleID,
 			})
@@ -176,6 +179,62 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	user, _ := h.store.GetUser(r.Context(), tenantID, userID)
 	JSON(w, http.StatusOK, user)
+}
+
+type setSSOSubjectRequest struct {
+	SSOSubject string `json:"sso_subject"`
+}
+
+// SetSSOSubject handles PUT /v1/users/{user_id}/sso-subject.
+//
+// Links a Moebius user to an OIDC `sub` claim so that an SSO login
+// resolves to this user. An empty body unlinks. Required because the
+// OIDC middleware looks up users via `users.sso_subject`, and no
+// JIT-provisioning path exists — an operator must explicitly bind
+// each user. The partial unique index on `users.sso_subject` enforces
+// one-subject-per-user at the DB level; a duplicate returns 409.
+func (h *UsersHandler) SetSSOSubject(w http.ResponseWriter, r *http.Request) {
+	tenantID := auth.TenantIDFromContext(r.Context())
+	actorID := auth.UserIDFromContext(r.Context())
+	userID := chi.URLParam(r, "user_id")
+
+	var req setSSOSubjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.SSOSubject = strings.TrimSpace(req.SSOSubject)
+
+	if err := h.store.SetUserSSOSubject(r.Context(), tenantID, userID, req.SSOSubject); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			// Unique-violation on users_sso_subject_unique — another
+			// user in some tenant is already linked to this subject.
+			ErrorWithCode(w, http.StatusConflict, "sso_subject_taken",
+				"another user is already linked to this SSO subject")
+			return
+		}
+		if err.Error() == "user not found" {
+			ErrorWithCode(w, http.StatusNotFound, "user_not_found",
+				"No user with the given ID exists")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to set sso subject")
+		return
+	}
+
+	if h.audit != nil {
+		action := "user.link_sso"
+		meta := map[string]string{"sso_subject": req.SSOSubject}
+		if req.SSOSubject == "" {
+			action = "user.unlink_sso"
+			meta = nil
+		}
+		h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
+			action, "user", userID, meta)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Deactivate handles POST /v1/users/{user_id}/deactivate.
@@ -190,7 +249,7 @@ func (h *UsersHandler) Deactivate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, actorID, models.ActorTypeUser,
 			"user.deactivate", "user", userID, nil)
 	}
 

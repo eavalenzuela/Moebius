@@ -59,4 +59,9 @@ var (
 		Name: "rate_limit_rejections_total",
 		Help: "Total requests rejected by rate limiting.",
 	}, []string{"limiter"})
+
+	AuditWriteFailuresTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "audit_write_failures_total",
+		Help: "Total audit log writes that failed. A non-zero value indicates audit entries were lost — investigate the database and alert if this persists.",
+	})
 )

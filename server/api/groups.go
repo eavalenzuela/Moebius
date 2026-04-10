@@ -119,7 +119,7 @@ func (h *GroupsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"group.create", "group", g.ID, map[string]string{"name": req.Name})
 	}
 
@@ -155,7 +155,7 @@ func (h *GroupsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"group.update", "group", groupID, nil)
 	}
 
@@ -182,7 +182,7 @@ func (h *GroupsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"group.delete", "group", groupID, nil)
 	}
 
@@ -237,7 +237,7 @@ func (h *GroupsHandler) AddDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"group.add_devices", "group", groupID, map[string]int{
 				"device_count": len(req.DeviceIDs),
 			})
@@ -266,7 +266,7 @@ func (h *GroupsHandler) RemoveDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"group.remove_device", "group", groupID, map[string]string{
 				"device_id": deviceID,
 			})

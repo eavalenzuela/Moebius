@@ -78,7 +78,7 @@ func (h *AlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"alert_rule.create", "alert_rule", ar.ID, nil)
 	}
 
@@ -165,7 +165,7 @@ func (h *AlertRulesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"alert_rule.update", "alert_rule", id, nil)
 	}
 
@@ -190,7 +190,7 @@ func (h *AlertRulesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"alert_rule.delete", "alert_rule", id, nil)
 	}
 
@@ -214,7 +214,7 @@ func (h *AlertRulesHandler) Enable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"alert_rule.enable", "alert_rule", id, nil)
 	}
 
@@ -238,7 +238,7 @@ func (h *AlertRulesHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"alert_rule.disable", "alert_rule", id, nil)
 	}
 

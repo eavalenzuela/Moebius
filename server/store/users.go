@@ -89,6 +89,31 @@ func (s *Store) UpdateUserRole(ctx context.Context, tenantID, userID, roleID str
 	return nil
 }
 
+// SetUserSSOSubject links a user to an OIDC subject claim. Pass an empty
+// string to unlink. The migration 005_users_sso_subject_unique enforces
+// uniqueness via a partial index (NULL rows are exempt), so duplicate
+// links across users return a constraint violation that the caller can
+// translate into a 409.
+func (s *Store) SetUserSSOSubject(ctx context.Context, tenantID, userID, ssoSubject string) error {
+	var subj any
+	if ssoSubject == "" {
+		subj = nil
+	} else {
+		subj = ssoSubject
+	}
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE users SET sso_subject = $1 WHERE id = $2 AND tenant_id = $3`,
+		subj, userID, tenantID,
+	)
+	if err != nil {
+		return fmt.Errorf("set sso subject: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
 // DeactivateUser marks a user as deactivated by clearing their role.
 func (s *Store) DeactivateUser(ctx context.Context, tenantID, userID string) error {
 	tag, err := s.pool.Exec(ctx,

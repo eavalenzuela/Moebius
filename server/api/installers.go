@@ -186,7 +186,7 @@ func (h *InstallersHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"installer.create", "installer", id, map[string]any{
 				"version": req.Version, "os": req.OS, "arch": req.Arch,
 			})

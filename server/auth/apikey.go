@@ -87,6 +87,15 @@ func NewAPIKeyMiddleware(pool *pgxpool.Pool, log *slog.Logger) *APIKeyMiddleware
 // Handler wraps an http.Handler with API key authentication.
 func (m *APIKeyMiddleware) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// If an earlier middleware (OIDC) already authenticated this
+		// request and attached a tenant ID to the context, pass through
+		// without requiring an API key. This is how OIDC and API key
+		// auth coexist on the same routes.
+		if TenantIDFromContext(r.Context()) != "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		raw := extractBearerToken(r)
 		if raw == "" {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{

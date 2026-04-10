@@ -11,6 +11,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/pki"
 	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/eavalenzuela/Moebius/shared/protocol"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -62,25 +63,61 @@ func (h *RenewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store new certificate record (old cert remains valid until expiry)
+	// Store new certificate and supersede prior un-revoked certs for this
+	// device in one transaction. Superseding shrinks the post-compromise
+	// window for a stolen agent key from the remaining cert lifetime
+	// (up to 90 days) to the duration of this request: the old cert is
+	// rejected by mTLS on its next use. Graceful rollover is preserved
+	// because the agent receives the new cert in the response before the
+	// old one becomes invalid at the TLS layer — the revocation only
+	// takes effect on the *next* mTLS handshake.
 	now := time.Now().UTC()
 	certID := models.NewCertificateID()
-	_, err = h.pool.Exec(ctx,
+
+	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		h.log.Error("begin renewal tx", slog.String("error", err.Error()))
+		Error(w, http.StatusInternalServerError, "failed to store certificate")
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
 		`INSERT INTO agent_certificates (id, device_id, serial_number, fingerprint, issued_at, expires_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		certID, agentID, serialHex, fingerprint, now, now.Add(defaultCertValidity),
-	)
-	if err != nil {
+	); err != nil {
 		h.log.Error("failed to store renewed certificate", slog.String("error", err.Error()))
 		Error(w, http.StatusInternalServerError, "failed to store certificate")
 		return
 	}
 
-	// Audit log
+	supersededTag, err := tx.Exec(ctx,
+		`UPDATE agent_certificates
+		    SET revoked_at = $1, revocation_reason = 'superseded_by_renewal'
+		  WHERE device_id = $2
+		    AND id <> $3
+		    AND revoked_at IS NULL`,
+		now, agentID, certID,
+	)
+	if err != nil {
+		h.log.Error("failed to supersede prior certificates", slog.String("error", err.Error()))
+		Error(w, http.StatusInternalServerError, "failed to store certificate")
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		h.log.Error("commit renewal tx", slog.String("error", err.Error()))
+		Error(w, http.StatusInternalServerError, "failed to store certificate")
+		return
+	}
+
 	if h.audit != nil {
-		_ = h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
-			"cert.renew", "agent_certificate", certID, map[string]string{
-				"cert_serial": serialHex,
+		h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
+			"cert.renew", "agent_certificate", certID, map[string]any{
+				"cert_serial":       serialHex,
+				"superseded_certs":  supersededTag.RowsAffected(),
+				"revocation_reason": "superseded_by_renewal",
 			})
 	}
 

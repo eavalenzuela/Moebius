@@ -117,7 +117,7 @@ func (h *SitesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"site.create", "site", si.ID, map[string]string{"name": req.Name})
 	}
 
@@ -153,7 +153,7 @@ func (h *SitesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"site.update", "site", siteID, nil)
 	}
 
@@ -180,7 +180,7 @@ func (h *SitesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"site.delete", "site", siteID, nil)
 	}
 
@@ -235,7 +235,7 @@ func (h *SitesHandler) AddDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"site.add_devices", "site", siteID, map[string]int{
 				"device_count": len(req.DeviceIDs),
 			})
@@ -264,7 +264,7 @@ func (h *SitesHandler) RemoveDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"site.remove_device", "site", siteID, map[string]string{
 				"device_id": deviceID,
 			})

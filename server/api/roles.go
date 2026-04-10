@@ -99,7 +99,7 @@ func (h *RolesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"role.create", "role", role.ID, map[string]string{
 				"name": req.Name,
 			})
@@ -165,7 +165,7 @@ func (h *RolesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"role.update", "role", roleID, nil)
 	}
 
@@ -184,7 +184,7 @@ func (h *RolesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"role.delete", "role", roleID, nil)
 	}
 

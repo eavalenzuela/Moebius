@@ -122,7 +122,7 @@ func (h *RolloutsHandler) updateRolloutStatus(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		action, "rollout", rollout.ID, map[string]any{
 			"version":    ver,
 			"new_status": newStatus,

@@ -138,7 +138,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Audit log
 	if h.audit != nil {
-		_ = h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
 			"job.create", "job", jobIDs[0], map[string]string{
 				"type":         req.Type,
 				"device_count": slog.IntValue(len(deviceIDs)).String(),
@@ -451,7 +451,7 @@ func (h *JobsHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
 			"job.cancel", "job", jobID, nil)
 	}
 
@@ -516,7 +516,7 @@ func (h *JobsHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
 			"job.retry", "job", retryJobID, map[string]string{
 				"parent_job_id": jobID,
 			})

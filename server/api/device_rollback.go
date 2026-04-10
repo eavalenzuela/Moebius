@@ -73,7 +73,7 @@ func (h *DeviceRollbackHandler) Rollback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		"device.rollback", "device", deviceID, map[string]any{
 			"job_id": jobID,
 			"reason": req.Reason,

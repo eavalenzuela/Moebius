@@ -108,7 +108,7 @@ func (h *ScheduledJobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"scheduled_job.create", "scheduled_job", sj.ID, nil)
 	}
 
@@ -220,7 +220,7 @@ func (h *ScheduledJobsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"scheduled_job.update", "scheduled_job", id, nil)
 	}
 
@@ -246,7 +246,7 @@ func (h *ScheduledJobsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"scheduled_job.delete", "scheduled_job", id, nil)
 	}
 
@@ -270,7 +270,7 @@ func (h *ScheduledJobsHandler) Enable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"scheduled_job.enable", "scheduled_job", id, nil)
 	}
 
@@ -294,7 +294,7 @@ func (h *ScheduledJobsHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"scheduled_job.disable", "scheduled_job", id, nil)
 	}
 

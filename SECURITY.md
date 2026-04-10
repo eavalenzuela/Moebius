@@ -173,6 +173,8 @@ Append-only integrity is enforced at two layers:
 - **Application:** `server/audit/audit.go` only contains INSERT; no UPDATE/DELETE/TRUNCATE exists in the codebase.
 - **Database:** Migration `004_audit_log_immutable.up.sql` adds PostgreSQL rules that silently discard UPDATE and DELETE, and an event trigger that rejects TRUNCATE.
 
+Write failures are surfaced — not swallowed — via the `audit_write_failures_total` Prometheus counter and a matching `audit log write failed` error log. Operators should alert on any non-zero delta. Retention and pruning procedures (which must work around the append-only DB rules) live in `docs/AUDIT_RETENTION.md`.
+
 ### Database
 
 PostgreSQL is the single source of truth. In production, use a managed PostgreSQL service with encryption at rest, automated backups, and restricted network access. The connection should use `sslmode=require` or stronger.

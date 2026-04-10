@@ -130,7 +130,7 @@ func (h *EnrollHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 6. Audit log
 	if h.audit != nil {
-		_ = h.audit.LogAction(ctx, token.TenantID, deviceID, models.ActorTypeAgent,
+		h.audit.LogAction(ctx, token.TenantID, deviceID, models.ActorTypeAgent,
 			"device.enroll", "device", deviceID, map[string]string{
 				"hostname":    req.Hostname,
 				"token_id":    token.ID,

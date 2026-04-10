@@ -74,7 +74,7 @@ func (h *AgentJobsHandler) Acknowledge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
+		h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
 			"job.acknowledge", "job", jobID, nil)
 	}
 
@@ -173,7 +173,7 @@ func (h *AgentJobsHandler) SubmitResult(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
+		h.audit.LogAction(ctx, tenantID, agentID, models.ActorTypeAgent,
 			"job.result", "job", jobID, map[string]string{
 				"status": targetStatus,
 			})

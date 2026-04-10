@@ -29,7 +29,8 @@ type RouterConfig struct {
 	Health                 *health.Handler
 	Enrollment             *auth.EnrollmentService
 	Storage                storage.Backend
-	TrustedProxyCIDRs      string // comma-separated CIDRs; empty disables proxy cert header
+	TrustedProxyCIDRs      string               // comma-separated CIDRs; empty disables proxy cert header
+	OIDC                   *auth.OIDCMiddleware // nil means OIDC/SSO is not configured
 	PerIPLimiter           *ratelimit.KeyedLimiter
 	PerTenantLimiter       *ratelimit.KeyedLimiter
 	PerAgentCheckinLimiter *ratelimit.KeyedLimiter
@@ -137,6 +138,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	// API endpoints (API key / OIDC authenticated)
 	apiKeyAuth := auth.NewAPIKeyMiddleware(cfg.Pool, cfg.Log)
 	r.Route("/v1", func(r chi.Router) {
+		// OIDC runs before API key auth so it gets first look at the
+		// bearer token. The middleware is a pass-through for empty or
+		// `sk_`-prefixed tokens, so API keys still work unchanged. If
+		// OIDC verifies a JWT it populates the tenant context; the API
+		// key middleware then sees that and passes through as well.
+		if cfg.OIDC != nil {
+			r.Use(cfg.OIDC.Handler)
+		}
 		r.Use(apiKeyAuth.Handler)
 		r.Use(auth.RequireTenant)
 		if cfg.PerTenantLimiter != nil {
@@ -166,6 +175,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermUsersWrite)).Post("/users/invite", users.Invite)
 		r.With(rbac.Require(rbac.PermUsersWrite)).Patch("/users/{user_id}", users.Update)
 		r.With(rbac.Require(rbac.PermUsersWrite)).Post("/users/{user_id}/deactivate", users.Deactivate)
+		r.With(rbac.Require(rbac.PermUsersWrite)).Put("/users/{user_id}/sso-subject", users.SetSSOSubject)
 
 		// API Keys
 		apiKeys := NewAPIKeysHandler(cfg.Store, cfg.Audit)

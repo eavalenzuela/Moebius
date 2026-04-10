@@ -71,16 +71,36 @@ func TestCertLifecycle_Renewal(t *testing.T) {
 		t.Errorf("cert validity = %v, expected ~90 days", validity)
 	}
 
-	// Verify two certificates now exist in DB
-	var certCount int
+	// Verify two certificates now exist in DB: the new one active, the
+	// old one superseded (revoked_at set, reason = superseded_by_renewal).
+	var total, active, superseded int
 	err = h.pool.QueryRow(context.Background(),
-		`SELECT COUNT(*) FROM agent_certificates WHERE device_id = $1`, agentID,
-	).Scan(&certCount)
+		`SELECT
+		   COUNT(*) FILTER (WHERE TRUE),
+		   COUNT(*) FILTER (WHERE revoked_at IS NULL),
+		   COUNT(*) FILTER (WHERE revocation_reason = 'superseded_by_renewal')
+		 FROM agent_certificates WHERE device_id = $1`, agentID,
+	).Scan(&total, &active, &superseded)
 	if err != nil {
 		t.Fatalf("query certs: %v", err)
 	}
-	if certCount != 2 {
-		t.Errorf("cert count = %d, want 2 (original + renewed)", certCount)
+	if total != 2 {
+		t.Errorf("cert count = %d, want 2 (original + renewed)", total)
+	}
+	if active != 1 {
+		t.Errorf("active cert count = %d, want 1 (only the new cert)", active)
+	}
+	if superseded != 1 {
+		t.Errorf("superseded cert count = %d, want 1 (the old cert)", superseded)
+	}
+
+	// The *old* cert must now be rejected by mTLS — this is the whole
+	// point of superseding on renewal, it shrinks the post-compromise
+	// window for a stolen key from the cert lifetime to the renewal RTT.
+	oldCertResp := h.agentRequest(client, "POST", "/v1/agents/checkin",
+		protocol.CheckinRequest{AgentID: agentID})
+	if oldCertResp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("old cert after renewal: status = %d, want 401", oldCertResp.StatusCode)
 	}
 }
 

@@ -92,7 +92,7 @@ func (h *UpdatePoliciesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		"update_policy.upsert", "update_policy", p.ID, map[string]any{
 			"group_id": p.GroupID,
 			"channel":  p.Channel,
@@ -130,7 +130,7 @@ func (h *UpdatePoliciesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		"update_policy.delete", "update_policy", policyID, nil)
 
 	w.WriteHeader(http.StatusNoContent)

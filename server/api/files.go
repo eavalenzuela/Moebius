@@ -369,7 +369,7 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	// Clean up staging
 	_ = os.RemoveAll(stageDir) //nolint:gosec // server-controlled staging directory
 
-	_ = h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
 		"file.upload", "file", fileID, nil)
 
 	// Return file metadata
@@ -532,7 +532,7 @@ func (h *FilesHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		_ = h.storage.Delete(ctx, fileID)
 	}
 
-	_ = h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(ctx, tenantID, userID, models.ActorTypeUser,
 		"file.delete", "file", fileID, nil)
 
 	w.WriteHeader(http.StatusNoContent)

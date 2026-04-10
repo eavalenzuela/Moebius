@@ -91,7 +91,7 @@ func (h *TagsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"tag.create", "tag", t.ID, map[string]string{"name": req.Name})
 	}
 
@@ -117,7 +117,7 @@ func (h *TagsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"tag.delete", "tag", tagID, nil)
 	}
 
@@ -160,7 +160,7 @@ func (h *TagsHandler) AddToDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"tag.add_to_device", "device", deviceID, map[string]int{
 				"tag_count": len(req.TagIDs),
 			})
@@ -192,7 +192,7 @@ func (h *TagsHandler) RemoveFromDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.audit != nil {
-		_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+		h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 			"tag.remove_from_device", "device", deviceID, map[string]string{
 				"tag_id": tagID,
 			})

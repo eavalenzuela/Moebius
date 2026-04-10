@@ -117,7 +117,7 @@ func (h *AgentVersionsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		"agent_version.publish", "agent_version", v.ID, map[string]any{
 			"version": v.Version,
 			"channel": v.Channel,
@@ -195,7 +195,7 @@ func (h *AgentVersionsHandler) Yank(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
+	h.audit.LogAction(r.Context(), tenantID, userID, models.ActorTypeUser,
 		"agent_version.yank", "agent_version", ver, map[string]any{
 			"reason": req.Reason,
 		})

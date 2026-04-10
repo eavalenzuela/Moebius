@@ -40,6 +40,8 @@ tests/          # Integration tests (build tag: integration)
 User-facing guides:
 - `docs/Deployment_Instructions.md` — local dev, Docker Compose, Kubernetes/Helm, env vars, upgrades
 - `docs/User_Guide.md` — operator guide: enrollment, devices, jobs, CDM, alerts, RBAC
+- `docs/KEY_ROTATION.md` — canonical rotation procedures for CAs, signing keys, API keys, DB password
+- `docs/AUDIT_RETENTION.md` — audit log retention, pruning around the append-only rules, partitioning
 - `SECURITY.md` — security architecture and design decisions
 
 Design specs live in `docs/`. Key references when implementing:

@@ -303,6 +303,79 @@ func TestSecurity_EnrollmentRollsBackOnBadScope(t *testing.T) {
 	}
 }
 
+// TestSecurity_SSOSubjectProvisioning covers the PUT /v1/users/{id}/sso-subject
+// admin endpoint that binds a Moebius user to an OIDC `sub` claim. Without
+// this endpoint the OIDC middleware always returns unknown_sso_user, so the
+// provisioning path is the prerequisite for turning on OIDC at all.
+func TestSecurity_SSOSubjectProvisioning(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	// Create a target user to link
+	userID := models.NewUserID()
+	if _, err := h.pool.Exec(ctx,
+		`INSERT INTO users (id, tenant_id, email, role_id, created_at) VALUES ($1, $2, $3, $4, $5)`,
+		userID, h.tenantID, "sso-target@test.local", h.roleID, time.Now()); err != nil {
+		t.Fatalf("create target user: %v", err)
+	}
+
+	// 1. Link the user to an SSO subject.
+	resp := h.apiRequest("PUT", "/v1/users/"+userID+"/sso-subject",
+		map[string]string{"sso_subject": "alice@idp.example.com"})
+	assertStatus(t, resp, http.StatusNoContent)
+
+	var got *string
+	if err := h.pool.QueryRow(ctx,
+		`SELECT sso_subject FROM users WHERE id = $1`, userID,
+	).Scan(&got); err != nil {
+		t.Fatalf("read sso_subject: %v", err)
+	}
+	if got == nil || *got != "alice@idp.example.com" {
+		t.Errorf("sso_subject = %v, want alice@idp.example.com", got)
+	}
+
+	// 2. A second user cannot steal the same subject — the partial unique
+	//    index blocks it and the handler returns 409.
+	user2ID := models.NewUserID()
+	if _, err := h.pool.Exec(ctx,
+		`INSERT INTO users (id, tenant_id, email, role_id, created_at) VALUES ($1, $2, $3, $4, $5)`,
+		user2ID, h.tenantID, "other@test.local", h.roleID, time.Now()); err != nil {
+		t.Fatalf("create second user: %v", err)
+	}
+	resp = h.apiRequest("PUT", "/v1/users/"+user2ID+"/sso-subject",
+		map[string]string{"sso_subject": "alice@idp.example.com"})
+	assertStatus(t, resp, http.StatusConflict)
+
+	// 3. Unlink by passing an empty string — sso_subject returns to NULL.
+	resp = h.apiRequest("PUT", "/v1/users/"+userID+"/sso-subject",
+		map[string]string{"sso_subject": ""})
+	assertStatus(t, resp, http.StatusNoContent)
+
+	if err := h.pool.QueryRow(ctx,
+		`SELECT sso_subject FROM users WHERE id = $1`, userID,
+	).Scan(&got); err != nil {
+		t.Fatalf("read sso_subject after unlink: %v", err)
+	}
+	if got != nil {
+		t.Errorf("sso_subject after unlink = %v, want NULL", *got)
+	}
+
+	// 4. After unlinking, the previously-conflicting user can claim the subject.
+	resp = h.apiRequest("PUT", "/v1/users/"+user2ID+"/sso-subject",
+		map[string]string{"sso_subject": "alice@idp.example.com"})
+	assertStatus(t, resp, http.StatusNoContent)
+}
+
+// TestSecurity_SSOSubjectProvisioningRequiresAuth confirms the endpoint sits
+// behind the auth chain — no silent bypass.
+func TestSecurity_SSOSubjectProvisioningRequiresAuth(t *testing.T) {
+	h := newHarness(t)
+
+	resp := h.apiRequestWithKey("", "PUT", "/v1/users/some-id/sso-subject",
+		map[string]string{"sso_subject": "nobody@idp.example.com"})
+	assertStatus(t, resp, http.StatusUnauthorized)
+}
+
 // TestSecurity_OIDCSubjectUnique verifies the partial unique index on
 // users.sso_subject (migration 005). Two users in different tenants must
 // not be able to share the same SSO subject — that would make the OIDC

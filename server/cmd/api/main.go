@@ -93,6 +93,25 @@ func runServer() error {
 	}
 	log.Info("file storage initialized", slog.String("backend", "local"), slog.String("path", cfg.StoragePath))
 
+	// Optional OIDC middleware — activated when OIDC_ISSUER_URL and
+	// OIDC_CLIENT_ID are set. The call contacts the issuer's discovery
+	// endpoint at startup to fetch JWKS; a misconfigured issuer fails
+	// loudly instead of silently ignoring the setting. When both env
+	// vars are empty, NewOIDCMiddleware returns (nil, nil) and SSO stays
+	// dormant — the router skips adding the middleware, and only API
+	// key auth is active.
+	oidcMw, err := auth.NewOIDCMiddleware(ctx, st.Pool(), auth.OIDCConfig{
+		IssuerURL:    cfg.OIDCIssuerURL,
+		ClientID:     cfg.OIDCClientID,
+		ClientSecret: cfg.OIDCClientSecret,
+	}, log)
+	if err != nil {
+		return fmt.Errorf("init OIDC middleware: %w", err)
+	}
+	if oidcMw != nil {
+		log.Info("OIDC/SSO enabled", slog.String("issuer", cfg.OIDCIssuerURL))
+	}
+
 	// Rate limiters
 	var perIPLimiter, perTenantLimiter, perAgentCheckinLimiter *ratelimit.KeyedLimiter
 	if cfg.RateLimitEnabled {
@@ -125,6 +144,7 @@ func runServer() error {
 		Enrollment:             enrollSvc,
 		Storage:                fileStorage,
 		TrustedProxyCIDRs:      cfg.TrustedProxyCIDRs,
+		OIDC:                   oidcMw,
 		PerIPLimiter:           perIPLimiter,
 		PerTenantLimiter:       perTenantLimiter,
 		PerAgentCheckinLimiter: perAgentCheckinLimiter,
