@@ -71,6 +71,10 @@ ui:
 
 postgres:
   external: true
+  # The DATABASE_URL is loaded from the moebius-db secret (see secrets.databaseUrl
+  # below). Production deployments MUST use sslmode=require or sslmode=verify-full
+  # — Moebius traffic to the database carries credentials, tenant identifiers, and
+  # audit-log writes that should never traverse a network in plaintext.
   url: ""  # set via secret
 
 ingress:
@@ -91,6 +95,14 @@ storage:
     credentialsSecret: moebius-s3-credentials
 
 secrets:
+  # databaseUrl is the full PostgreSQL connection string, written into the
+  # moebius-db Secret as DATABASE_URL. Production deployments MUST set
+  # sslmode=require (minimum) or sslmode=verify-full (preferred — verifies the
+  # server cert chain and hostname). Examples:
+  #   postgres://moebius:PASS@db.internal:5432/moebius?sslmode=require
+  #   postgres://moebius:PASS@db.internal:5432/moebius?sslmode=verify-full&sslrootcert=/etc/ssl/db-ca.pem
+  # Leave empty here and create the moebius-db secret out-of-band (see
+  # docs/Deployment_Instructions.md § Database TLS).
   databaseUrl: ""
   caKeyPath: /certs/intermediate-ca.key
   caCertPath: /certs/intermediate-ca.crt

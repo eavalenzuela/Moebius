@@ -2,6 +2,8 @@ module github.com/eavalenzuela/Moebius
 
 go 1.25.0
 
+toolchain go1.25.9
+
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/Microsoft/go-winio v0.6.2

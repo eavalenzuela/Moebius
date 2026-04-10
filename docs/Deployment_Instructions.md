@@ -13,6 +13,7 @@ This document covers how to build, deploy, and operate the Moebius platform acro
 - [Release Signing](#release-signing)
 - [Release Pipeline (CI/CD)](#release-pipeline-cicd)
 - [Database Migrations](#database-migrations)
+- [Database TLS](#database-tls)
 - [Environment Variable Reference](#environment-variable-reference)
 - [Upgrading](#upgrading)
 - [Troubleshooting](#troubleshooting)
@@ -598,6 +599,64 @@ kubectl run moebius-migrate --rm -it --restart=Never \
 | `003_rollouts.up.sql`           | Agent rollout tracking tables                   |
 
 Migrations are forward-only in production. The `schema_migrations` table tracks which migrations have been applied.
+
+---
+
+## Database TLS
+
+Moebius traffic to PostgreSQL carries credentials, tenant identifiers, audit-log writes, and signing-key material. Production deployments **must** require TLS on the database connection. The `DATABASE_URL` connection string controls this via the `sslmode` query parameter.
+
+### Recommended modes
+
+| Mode             | When to use                                                                 |
+|------------------|------------------------------------------------------------------------------|
+| `disable`        | Local development only; never in production.                                 |
+| `require`        | Minimum acceptable for production. Encrypts the connection but does **not** verify the server certificate — vulnerable to MITM if an attacker can intercept TCP. |
+| `verify-ca`      | Verifies the cert chains to a trusted CA. Defends against unknown servers.   |
+| `verify-full`    | **Preferred for production.** Verifies chain *and* hostname match. Pair with `sslrootcert=` pointing at the CA bundle. |
+
+### Self-Hosted (Docker Compose)
+
+The bundled `postgres` service in `deploy/docker-compose.yml` listens only on the internal docker network — no host port is published — so traffic between the API/scheduler containers and the database never leaves the host. The default `sslmode=disable` is acceptable for evaluation in this configuration.
+
+For production self-hosted installs, choose one of:
+
+1. **External Postgres (recommended).** Point `DATABASE_URL` at an externally managed Postgres (RDS, Cloud SQL, on-prem cluster) configured for TLS. Override the URL via env var without editing compose:
+
+   ```bash
+   # In deploy/.env
+   DATABASE_URL=postgres://moebius:PASSWORD@db.internal:5432/moebius?sslmode=verify-full&sslrootcert=/certs/db-ca.pem
+   ```
+
+   Mount the CA bundle into the api/scheduler containers (`./certs:/certs:ro` is already wired) and reference it via `sslrootcert`.
+
+2. **TLS on the bundled Postgres.** Generate a server certificate, mount it into the postgres container, and start postgres with `ssl=on`. Then set `DATABASE_URL=...?sslmode=require` (or `verify-full` if you want hostname checking against the docker DNS name). This is more involved than option 1 and is rarely worth it for self-hosted installs.
+
+### Kubernetes / Helm
+
+The Helm chart loads `DATABASE_URL` from the `moebius-db` Secret. Create the secret with a TLS-enabled connection string:
+
+```bash
+kubectl create secret generic moebius-db \
+  --from-literal=DATABASE_URL="postgres://moebius:PASSWORD@db-host:5432/moebius?sslmode=verify-full&sslrootcert=/etc/ssl/db-ca.pem"
+```
+
+If your Postgres CA needs to be mounted into the API/scheduler pods, add a `volumes` / `volumeMounts` override in your `my-values.yaml` and reference the in-pod path in `sslrootcert`. Cloud-managed databases (RDS, Cloud SQL, Azure DB for PostgreSQL) typically publish a CA bundle that should be baked into the API image or supplied via a ConfigMap.
+
+### Verification
+
+After deploying, confirm TLS is in effect:
+
+```bash
+# In a one-off pod / container with psql:
+psql "$DATABASE_URL" -c "SHOW ssl;"
+# Expected: ssl = on
+
+# Or check from within Postgres:
+psql -c "SELECT pid, ssl FROM pg_stat_ssl JOIN pg_stat_activity USING (pid) WHERE application_name LIKE '%moebius%';"
+```
+
+All Moebius connections should report `ssl = t`.
 
 ---
 

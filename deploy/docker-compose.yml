@@ -1,3 +1,15 @@
+# DATABASE_URL notes:
+#   The bundled postgres container is reachable only on the internal docker
+#   network (no published port), so plaintext within this stack is acceptable
+#   for evaluation deployments. For any production self-hosted install you
+#   should either (a) front the bundled postgres with TLS by mounting cert
+#   material and setting `ssl=on` on the postgres command line, or (b) point
+#   DATABASE_URL at an external managed Postgres with `sslmode=require` (or
+#   `verify-full`). See docs/Deployment_Instructions.md § Database TLS.
+#
+# Override DATABASE_URL via the .env file or environment to switch to
+# sslmode=require without editing this compose file.
+
 services:
 
   postgres:
@@ -22,7 +34,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable}
       CA_CERT_PATH: /dev/null
       CA_KEY_PATH: /dev/null
 
@@ -35,7 +47,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable}
       HTTP_PORT: "8080"
       TLS_MODE: passthrough
       CA_KEY_PATH: /certs/intermediate-ca.key
@@ -59,7 +71,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://moebius:${POSTGRES_PASSWORD}@postgres:5432/moebius?sslmode=disable}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       # Reaper knobs — see docs/HIGH-LEVEL_DESIGN.md § Scheduler.
