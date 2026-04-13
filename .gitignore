@@ -4,6 +4,7 @@
 /scheduler
 /keygen
 /sign
+/worker
 *.exe
 *.exe~
 *.dll
