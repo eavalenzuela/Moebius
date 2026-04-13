@@ -56,7 +56,7 @@ Design specs live in `docs/`. Key references when implementing:
 - `docs/AGENT_UPDATE_SPEC.md` — agent auto-update with rollback
 - `docs/INSTALLER_PACKAGING_SPEC.md` — agent distribution and installation
 
-Progress tracking at root: `FEATURE_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`.
+Progress tracking: `docs/FEATURE_REQUIREMENTS.md`, `docs/IMPLEMENTATION_PLAN.md`.
 
 ## Build & Development
 
