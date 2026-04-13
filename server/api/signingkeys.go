@@ -167,20 +167,31 @@ func (h *SigningKeysHandler) Delete(w http.ResponseWriter, r *http.Request) {
 // validateEd25519PEM parses a PEM-encoded Ed25519 public key
 // and returns its SHA-256 fingerprint.
 func validateEd25519PEM(pemData string) (string, error) {
-	block, _ := pem.Decode([]byte(pemData))
-	if block == nil {
-		return "", fmt.Errorf("invalid PEM data")
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	block, pub, err := parseEd25519PublicKeyPEM(pemData)
 	if err != nil {
-		return "", fmt.Errorf("invalid public key: %w", err)
+		return "", err
 	}
-
-	if _, ok := pub.(ed25519.PublicKey); !ok {
-		return "", fmt.Errorf("key is not Ed25519")
-	}
-
+	_ = pub
 	hash := sha256.Sum256(block.Bytes)
 	return fmt.Sprintf("SHA256:%x", hash), nil
+}
+
+// parseEd25519PublicKeyPEM decodes a PEM block, parses it as a PKIX
+// public key, and asserts that it is an Ed25519 key. The returned
+// pem.Block is included so callers that need the DER bytes for
+// fingerprinting don't have to re-decode.
+func parseEd25519PublicKeyPEM(pemData string) (*pem.Block, ed25519.PublicKey, error) {
+	block, _ := pem.Decode([]byte(pemData))
+	if block == nil {
+		return nil, nil, fmt.Errorf("invalid PEM data")
+	}
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid public key: %w", err)
+	}
+	edPub, ok := pub.(ed25519.PublicKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("key is not Ed25519")
+	}
+	return block, edPub, nil
 }

@@ -86,18 +86,18 @@ All findings below are current as of 2026-04-09.
 
 ### I8 — Release artifacts and agent updates verified via Ed25519 + SHA-256
 
-**Status: Partial** (core agent-side verification correct; server-side enforcement and initial-install verification are gaps)
+**Status: Partial** (upstream server+agent verification landed; release-pipeline operationalisation deferred to downstream packagers — upstream is not the primary release channel)
 
 - **What is verified:**
   - Signing tooling (`tools/keygen`, `tools/sign`) uses `crypto/ed25519` + `crypto/rand`.
   - Agent update executor (`agent/executor/update.go:22-185`) verifies SHA-256 and Ed25519 signature on the staging file **before** replacing the current binary.
   - Signing-key registration endpoint (`server/api/signingkeys.go`) rejects non-Ed25519 PEM keys at upload time.
-  - Tests: `TestExecuteAgentUpdate_FullFlow`, `TestExecuteAgentUpdate_ChecksumMismatch`, rollback coverage via `TestExecuteAgentRollback_Success` / `TestCheckPostRestart_*`.
-- **Known gaps (tracked as accepted risk pending product decision):**
-  1. **`keys/release.pub` is a placeholder.** Fails closed — signed updates will error until a real key is generated, registered, and used — but the signing pipeline is not yet operational.
-  2. **Server never verifies uploaded file signatures.** `files.signature_verified` is inserted `FALSE` and never updated. `Signature` / `SignatureKeyID` are stored but unvalidated. Defense-in-depth shortfall, not a bypass (agent still verifies before staging).
-  3. **Installer downloads have no agent-side signature verification.** First-install trust rests on the enrollment-token + TLS channel. A compromised CDN could serve a tampered installer.
-  4. **`agent_signingkeys.go:29` looks up signing keys by ID without a `tenant_id` filter.** Inconsistent with tenant isolation elsewhere, though not exploitable because the server picks the key ID in the update payload.
+  - **Server-side file signature verification.** `server/api/files.go:CompleteUpload` now verifies the Ed25519 signature against the registered signing key's public PEM (matched by `files.signature_key_id` + `tenant_id`) over the SHA-256 digest produced during chunk assembly, mirroring the agent verify path. Failure deletes the assembled object and returns `400 signature_invalid`; `files.signature_verified` is set to TRUE only on a real verify. Defense-in-depth: `Download` additionally refuses to serve any row that has a stored `signature` but `signature_verified=FALSE`. Parser lives in `server/api/signingkeys.go:parseEd25519PublicKeyPEM`.
+  - **Tenant-scoped agent signing-key lookup.** `server/api/agent_signingkeys.go:Get` now scopes the `SELECT` by `tenant_id` resolved from mTLS context, aligning with every other `/v1/agents/*` handler.
+  - Tests: `TestExecuteAgentUpdate_FullFlow`, `TestExecuteAgentUpdate_ChecksumMismatch`, rollback coverage via `TestExecuteAgentRollback_Success` / `TestCheckPostRestart_*`, plus new `TestSecurity_FileSignature_ValidSignatureAccepted`, `TestSecurity_FileSignature_InvalidSignatureRejected`, and `TestSecurity_AgentSigningKeyCrossTenantReturns404` in `tests/integration/security_test.go`.
+- **Deferred to downstream packagers (upstream is not the primary release channel):**
+  1. **`keys/release.pub` placeholder.** A real Ed25519 keypair, check-in of `release.pub`, and registration on the server are the responsibility of whoever operates the downstream release pipeline. The upstream agent verify path fails closed without an operational key, which is the correct behaviour for upstream.
+  2. **Installer first-install download verification.** Agent-side verification of the *initial* installer payload depends on the downstream distribution channel (MSI/rpm/deb signing, S3 + signed manifest, etc.) — not something upstream can choose unilaterally. First-install trust currently rests on the enrollment-token + TLS channel.
 - **Evidence:** `SEC_VALIDATION.md § I8`.
 
 ### I9 — Local UI bound to 127.0.0.1, per-device CA with Name Constraints
@@ -163,7 +163,7 @@ All findings below are current as of 2026-04-09.
 **Status: Verified** (with I8 caveats)
 
 - CA + cert signing: file perms `0o600`, cert usage / EKU correct, CSR key now locked to ECDSA P-256 via `validateAgentPublicKey` (see I7 fixes).
-- Artifact signing: base64 Ed25519, agent verifies before staging. Gaps are the I8 items (placeholder key, no server-side file verification, no installer-download verification).
+- Artifact signing: base64 Ed25519. Agent verifies before staging; server now verifies uploaded file signatures at `CompleteUpload` time and refuses to serve any row with a stored signature that did not pass verification. Remaining I8 items (placeholder release key, installer-download verification) are deferred to downstream packagers.
 - Local UI CA: Name Constraints with `PermittedDNSDomainsCritical: true`, blast radius confined to `localhost` / `127.0.0.1` even on key compromise.
 - Hashing: only `crypto/sha256` + `crypto/ed25519`; no MD5/SHA-1 for security purposes.
 - Key rotation: `docs/KEY_ROTATION.md` consolidates procedures (Storage, Trigger planned, Trigger compromise, Procedure, Blast radius, Verification, Rollback) for Root CA, Intermediate CA, agent client certs, per-device local-UI CA, release signing key, API keys, and DB password.
@@ -195,10 +195,10 @@ All findings below are current as of 2026-04-09.
 
 ### 2.8 Denial of Service & Resource Limits
 
-**Status: Partial**
+**Status: Verified**
 
-- **Verified:** two-tier rate limiting (per-IP 60 rpm + per-tenant 600 rpm, both active simultaneously), per-agent check-in limiter (6 rpm) on the checkin route, per-IP limit applied before authentication, per-job timeout enforcement on the agent, no regex compiled from user input. Tests in `server/ratelimit/`.
-- **Gap:** per-tenant count-based resource limits (max devices, max jobs in queue, max file size, max API keys) are **not implemented**. These are quota counts rather than request-rate limits and require a separate feature implementation. Deferred beyond this validation pass.
+- **Rate limiting:** two-tier rate limiting (per-IP 60 rpm + per-tenant 600 rpm, both active simultaneously), per-agent check-in limiter (6 rpm) on the checkin route, per-IP limit applied before authentication, per-job timeout enforcement on the agent, no regex compiled from user input. Tests in `server/ratelimit/`.
+- **Count/size quotas:** `server/quota/` enforces per-tenant ceilings on devices, queued jobs, API keys, and single-file size. Defaults come from `QUOTA_MAX_*` env vars (10k devices, 10k queued jobs, 100 API keys, 1 GB files); tenants can override via `TenantConfig.Quotas` JSONB; `-1` means unlimited. Rejections return 409 `quota_exceeded` from `api/enroll.go`, `api/apikeys.go` Create, `api/jobs.go` Create+Retry, and `api/files.go` InitiateUpload. Queued-job count deliberately excludes terminal states so historical backlog cannot permanently pin the cap. The jobs-create fan-out check is atomic — a rejected batch lands zero jobs. Unit tests in `server/quota/quota_test.go` cover the override overlay, error format, and nil-resolver no-op path. Integration tests in `tests/integration/quota_test.go` cover each endpoint's reject + allow paths.
 
 ### 2.9 Audit Log Integrity
 
@@ -220,8 +220,8 @@ All findings below are current as of 2026-04-09.
 
 Items below are known shortfalls that fall outside the scope of this validation pass and are tracked here for the follow-on hardening queue.
 
-1. **Release signing pipeline operationalisation (I8).** Generate a real Ed25519 keypair, check in `keys/release.pub`, register on the server, sign release artifacts, and enable server-side file signature verification (`files.signature_verified`). Add agent-side installer-download verification.
-2. **Per-tenant count quotas (§ 2.8).** Implement max devices / jobs / files / API keys per tenant. Separate feature.
+1. **Release signing pipeline operationalisation (I8) — deferred to downstream packagers.** Upstream is not the primary release channel, so real-key generation, `keys/release.pub` check-in, and agent installer first-install verification belong to whoever operates the downstream distribution pipeline. ~~Server-side file signature verification~~ **landed** — `server/api/files.go:CompleteUpload` now verifies against the registered signing key and `Download` refuses unverified rows. ~~Tenant-scoping on `agent_signingkeys.Get`~~ **landed**. See I8 above.
+2. ~~**Per-tenant count quotas (§ 2.8).**~~ **Landed.** `server/quota/` enforces max devices / queued jobs / API keys / single-file size per tenant, with global defaults via `QUOTA_MAX_*` env vars and per-tenant overrides in `TenantConfig.Quotas`. Enforcement wired into enroll, jobs create/retry, api-keys create, and file upload initiate. Unit + integration tests landed. See `SEC_VALIDATION.md` §2.8 for evidence.
 3. **CI release signing key isolation (§ 2.10).** GitHub Environment + workflow-level scoping for the signing credentials.
 4. ~~**Old-cert auto-revocation on renewal (I7 follow-up).**~~ **Landed.** `server/api/renew.go` now wraps the cert insert in a transaction and marks all prior un-revoked certs for the device as `superseded_by_renewal`. The agent receives the new cert in the same response so rollover remains graceful — revocation only bites if the stolen old cert is presented on a subsequent handshake. Verified by `tests/integration/cert_lifecycle_test.go:TestCertLifecycle_Renewal` (asserts 1 active / 1 superseded row and that the old cert is rejected).
 5. ~~**Audit write failures (I10 follow-up).**~~ **Landed.** `server/audit/audit.go` now routes every write failure (and metadata-marshal failure) through a `reportFailure` helper that logs at error level and increments the new Prometheus counter `audit_write_failures_total`. Call sites no longer use the `_ = h.audit.LogAction(...)` pattern — a non-zero counter is the signal that audit rows were lost. Unit-tested by `server/audit/audit_test.go:TestLogAction_FailureCountedAndLogged` using a closed pool to force the error path.
@@ -242,4 +242,4 @@ Per `SEC_VALIDATION.md § 4`:
 | 3 | Code fixes with `sec:` commit prefix | Landed across the Phase-2 security commit series (most recent: `0d0a02f sec: Section 2 remediation`). |
 | 4 | Updated `SECURITY.md` | Reviewed; no architectural changes required during this pass. |
 | 5 | `docs/KEY_ROTATION.md` | Authored. Canonical key rotation reference. |
-| 6 | `docs/THREAT_MODEL.md` (post-validation follow-on) | Deferred — blocked on closing the remaining I8 and § 2.8 gaps so the threat model reflects tested reality. |
+| 6 | `docs/THREAT_MODEL.md` (post-validation follow-on) | **Landed.** STRIDE-per-component with evidence citations. Release-signing threats framed as downstream-packager responsibility (upstream is not the primary release channel). |

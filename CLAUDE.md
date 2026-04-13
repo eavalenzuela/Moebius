@@ -43,6 +43,7 @@ User-facing guides:
 - `docs/KEY_ROTATION.md` — canonical rotation procedures for CAs, signing keys, API keys, DB password
 - `docs/AUDIT_RETENTION.md` — audit log retention, pruning around the append-only rules, partitioning
 - `SECURITY.md` — security architecture and design decisions
+- `docs/THREAT_MODEL.md` — STRIDE per component with evidence citations; residual and accepted risks
 
 Design specs live in `docs/`. Key references when implementing:
 - `docs/HIGH-LEVEL_DESIGN.md` — architecture, component responsibilities, directory layout

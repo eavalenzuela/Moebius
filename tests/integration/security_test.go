@@ -6,16 +6,19 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"testing"
@@ -1079,6 +1082,244 @@ func TestSecurity_Enrollment_RejectsP384CSR(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+// TestSecurity_AgentSigningKeyCrossTenantReturns404 verifies that the
+// agent-facing signing-key fetch endpoint refuses to leak a key that
+// belongs to a different tenant. The mTLS middleware resolves the agent's
+// tenant from its client certificate; the handler must scope its lookup
+// to that tenant rather than accepting any key ID globally.
+func TestSecurity_AgentSigningKeyCrossTenantReturns404(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	// Insert a signing key for tenant 1 (the harness default tenant).
+	tenant1KeyID := models.NewSigningKeyID()
+	tenant1PubKey := "-----BEGIN PUBLIC KEY-----\nTENANT1_KEY_MATERIAL\n-----END PUBLIC KEY-----"
+	_, err := h.pool.Exec(ctx,
+		`INSERT INTO signing_keys (id, tenant_id, name, algorithm, public_key, fingerprint, created_by, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		tenant1KeyID, h.tenantID, "t1-release", "ed25519", tenant1PubKey, "SHA256:t1fp", h.userID, now)
+	if err != nil {
+		t.Fatalf("insert tenant1 signing key: %v", err)
+	}
+
+	// Create a second tenant and insert a signing key under it.
+	tenant2ID := models.NewTenantID()
+	if _, err := h.pool.Exec(ctx,
+		`INSERT INTO tenants (id, name, slug, created_at) VALUES ($1, $2, $3, $4)`,
+		tenant2ID, "Tenant 2", "tenant-2-sigkey", now); err != nil {
+		t.Fatalf("create tenant2: %v", err)
+	}
+	tenant2KeyID := models.NewSigningKeyID()
+	tenant2PubKey := "-----BEGIN PUBLIC KEY-----\nTENANT2_KEY_MATERIAL\n-----END PUBLIC KEY-----"
+	if _, err := h.pool.Exec(ctx,
+		`INSERT INTO signing_keys (id, tenant_id, name, algorithm, public_key, fingerprint, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		tenant2KeyID, tenant2ID, "t2-release", "ed25519", tenant2PubKey, "SHA256:t2fp", now); err != nil {
+		t.Fatalf("insert tenant2 signing key: %v", err)
+	}
+
+	// Enroll an agent under tenant 1 so we have an mTLS identity bound to t1.
+	h.startMTLSServer()
+	_, certPEM, keyPEM := h.enrollAgent("sigkey-host")
+	client := h.mtlsClient(certPEM, keyPEM)
+
+	// Sanity: tenant 1 can fetch its own key through the agent endpoint.
+	resp := h.agentRequest(client, "GET", "/v1/agents/signing-keys/"+tenant1KeyID, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("same-tenant key fetch: expected 200, got %d", resp.StatusCode)
+	}
+	var ok struct {
+		PublicKey string `json:"public_key"`
+	}
+	readJSON(t, resp, &ok)
+	if ok.PublicKey != tenant1PubKey {
+		t.Errorf("same-tenant key fetch returned wrong public_key: %q", ok.PublicKey)
+	}
+
+	// Cross-tenant: tenant 1's agent must not be able to read tenant 2's key.
+	// Prior to the I8 #4 fix this returned 200 with the foreign public_key.
+	resp = h.agentRequest(client, "GET", "/v1/agents/signing-keys/"+tenant2KeyID, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("cross-tenant key fetch: expected 404, got %d", resp.StatusCode)
+	}
+}
+
+// ─── File signature verification (I8 #2) ────────────────
+
+// fileSigFixture holds a registered Ed25519 signing key and the raw
+// private key so a test can sign a file as the key's owner.
+type fileSigFixture struct {
+	keyID   string
+	privKey ed25519.PrivateKey
+}
+
+// registerSigningKey generates an Ed25519 keypair, registers the public
+// key with the test tenant via the admin API, and returns the server-
+// assigned key ID plus the raw private key for signing.
+func registerSigningKey(t *testing.T, h *testHarness) fileSigFixture {
+	t.Helper()
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate ed25519 key: %v", err)
+	}
+	derBytes, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		t.Fatalf("marshal pub key: %v", err)
+	}
+	pubPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: derBytes}))
+
+	resp := h.apiRequestWithKey(h.adminKey, "POST", "/v1/signing-keys", map[string]any{
+		"name":       "test-release-key",
+		"public_key": pubPEM,
+	})
+	assertStatus(t, resp, http.StatusCreated)
+	var body struct {
+		ID string `json:"id"`
+	}
+	readJSON(t, resp, &body)
+	if body.ID == "" {
+		t.Fatal("register signing key returned empty id")
+	}
+	return fileSigFixture{keyID: body.ID, privKey: priv}
+}
+
+// signEd25519 mirrors tools/sign: sign(SHA-256(content)) and return
+// the base64-encoded signature.
+func signEd25519(priv ed25519.PrivateKey, content []byte) string {
+	digest := sha256.Sum256(content)
+	sig := ed25519.Sign(priv, digest[:])
+	return base64.StdEncoding.EncodeToString(sig)
+}
+
+// uploadFileChunk PUTs a single chunk and closes the response body.
+func uploadFileChunk(t *testing.T, h *testHarness, uploadID string, chunkIndex int, data []byte) {
+	t.Helper()
+	req, _ := http.NewRequest("PUT",
+		h.apiURL+"/v1/files/uploads/"+uploadID+"/chunks/"+fmt.Sprintf("%d", chunkIndex),
+		bytes.NewReader(data))
+	req.Header.Set("Authorization", "Bearer "+h.adminKey)
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("upload chunk: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("upload chunk: status=%d body=%s", resp.StatusCode, string(body))
+	}
+}
+
+// TestSecurity_FileSignature_ValidSignatureAccepted verifies that a file
+// uploaded with a valid Ed25519 signature over its SHA-256 digest is
+// accepted by CompleteUpload and that files.signature_verified is TRUE
+// in the database. Prior to the I8 #2 fix, signature_verified stayed
+// FALSE even for well-formed uploads because the server never checked.
+func TestSecurity_FileSignature_ValidSignatureAccepted(t *testing.T) {
+	h := newHarness(t)
+	fx := registerSigningKey(t, h)
+
+	content := []byte("authentic release payload\n")
+	sum := sha256.Sum256(content)
+	sigB64 := signEd25519(fx.privKey, content)
+
+	resp := h.apiRequestWithKey(h.adminKey, "POST", "/v1/files", map[string]any{
+		"filename":         "release.tar.gz",
+		"size_bytes":       len(content),
+		"sha256":           hex.EncodeToString(sum[:]),
+		"signature":        sigB64,
+		"signature_key_id": fx.keyID,
+	})
+	assertStatus(t, resp, http.StatusCreated)
+	var init struct {
+		FileID   string `json:"file_id"`
+		UploadID string `json:"upload_id"`
+	}
+	readJSON(t, resp, &init)
+
+	uploadFileChunk(t, h, init.UploadID, 0, content)
+
+	resp = h.apiRequestWithKey(h.adminKey, "POST",
+		"/v1/files/uploads/"+init.UploadID+"/complete", nil)
+	assertStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+
+	var verified bool
+	if err := h.pool.QueryRow(context.Background(),
+		`SELECT signature_verified FROM files WHERE id = $1`, init.FileID,
+	).Scan(&verified); err != nil {
+		t.Fatalf("query signature_verified: %v", err)
+	}
+	if !verified {
+		t.Error("signature_verified is FALSE after a valid signature was accepted")
+	}
+}
+
+// TestSecurity_FileSignature_InvalidSignatureRejected verifies that a
+// file uploaded with a signature over *different* content is rejected
+// by CompleteUpload with 400 signature_invalid, and that neither the
+// DB row retains a storage path nor any leftover bytes survive in the
+// storage backend. Prior to the I8 #2 fix the server would happily
+// accept this and mark the file ready for download.
+func TestSecurity_FileSignature_InvalidSignatureRejected(t *testing.T) {
+	h := newHarness(t)
+	fx := registerSigningKey(t, h)
+
+	realContent := []byte("what gets uploaded\n")
+	realSum := sha256.Sum256(realContent)
+
+	// Sign a *different* payload — the uploaded content's SHA won't
+	// match the signed digest.
+	fakeContent := []byte("what was actually signed\n")
+	badSigB64 := signEd25519(fx.privKey, fakeContent)
+
+	resp := h.apiRequestWithKey(h.adminKey, "POST", "/v1/files", map[string]any{
+		"filename":         "tampered.bin",
+		"size_bytes":       len(realContent),
+		"sha256":           hex.EncodeToString(realSum[:]),
+		"signature":        badSigB64,
+		"signature_key_id": fx.keyID,
+	})
+	assertStatus(t, resp, http.StatusCreated)
+	var init struct {
+		FileID   string `json:"file_id"`
+		UploadID string `json:"upload_id"`
+	}
+	readJSON(t, resp, &init)
+
+	uploadFileChunk(t, h, init.UploadID, 0, realContent)
+
+	resp = h.apiRequestWithKey(h.adminKey, "POST",
+		"/v1/files/uploads/"+init.UploadID+"/complete", nil)
+	if resp.StatusCode != http.StatusBadRequest {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Fatalf("expected 400, got %d: %s", resp.StatusCode, string(body))
+	}
+	if code := readErrorCode(t, resp); code != "signature_invalid" {
+		t.Errorf("expected error code signature_invalid, got %q", code)
+	}
+
+	// DB state: row still exists (we only roll back storage on reject),
+	// but signature_verified must be FALSE and storage_path must remain
+	// empty so Download can never serve it.
+	var verified bool
+	var storagePath string
+	if err := h.pool.QueryRow(context.Background(),
+		`SELECT signature_verified, storage_path FROM files WHERE id = $1`, init.FileID,
+	).Scan(&verified, &storagePath); err != nil {
+		t.Fatalf("query file row: %v", err)
+	}
+	if verified {
+		t.Error("signature_verified is TRUE after a bad signature was rejected")
+	}
+	if storagePath != "" {
+		t.Errorf("storage_path = %q; expected empty after rejection", storagePath)
 	}
 }
 

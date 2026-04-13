@@ -1,9 +1,13 @@
 package api
 
 import (
+	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,10 +19,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/eavalenzuela/Moebius/server/audit"
 	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/quota"
 	"github.com/eavalenzuela/Moebius/server/storage"
 	"github.com/eavalenzuela/Moebius/shared/models"
 )
@@ -33,18 +39,20 @@ type FilesHandler struct {
 	pool    *pgxpool.Pool
 	storage storage.Backend
 	audit   *audit.Logger
+	quota   *quota.Resolver
 	log     *slog.Logger
 	tempDir string // where chunks are staged before assembly
 }
 
 // NewFilesHandler creates a FilesHandler.
-func NewFilesHandler(pool *pgxpool.Pool, store storage.Backend, auditLog *audit.Logger, log *slog.Logger) *FilesHandler {
+func NewFilesHandler(pool *pgxpool.Pool, store storage.Backend, auditLog *audit.Logger, quotaRes *quota.Resolver, log *slog.Logger) *FilesHandler {
 	tempDir := filepath.Join(os.TempDir(), "moebius-uploads")
 	_ = os.MkdirAll(tempDir, 0o750)
 	return &FilesHandler{
 		pool:    pool,
 		storage: store,
 		audit:   auditLog,
+		quota:   quotaRes,
 		log:     log,
 		tempDir: tempDir,
 	}
@@ -83,6 +91,17 @@ func (h *FilesHandler) InitiateUpload(w http.ResponseWriter, r *http.Request) {
 
 	if req.Filename == "" || req.SizeBytes <= 0 || req.SHA256 == "" {
 		Error(w, http.StatusBadRequest, "filename, size_bytes, and sha256 are required")
+		return
+	}
+
+	// Single-file size quota — checked before any DB writes so an
+	// oversized upload is rejected without allocating metadata rows.
+	if err := h.quota.CheckFileSize(r.Context(), tenantID, req.SizeBytes); err != nil {
+		if HandleQuotaError(w, err) {
+			return
+		}
+		h.log.Error("file-size quota check", slog.String("error", err.Error()))
+		Error(w, http.StatusInternalServerError, "failed to check quota")
 		return
 	}
 
@@ -351,7 +370,8 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actualSHA := hex.EncodeToString(hasher.Sum(nil))
+	digest := hasher.Sum(nil)
+	actualSHA := hex.EncodeToString(digest)
 	if actualSHA != expectedSHA {
 		_ = h.storage.Delete(ctx, fileID)
 		ErrorWithCode(w, http.StatusBadRequest, "checksum_mismatch",
@@ -359,10 +379,32 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update file record with storage path, mark upload completed
+	// If the uploader supplied an Ed25519 signature at initiate time,
+	// verify it server-side against the registered signing key for this
+	// tenant. This is defense-in-depth: the agent also verifies before
+	// staging an update, but server-side verification means a file with
+	// a stored signature is guaranteed to be verifiable by the time it
+	// is ever served.
+	signatureVerified, sigErr := h.verifyFileSignature(ctx, tenantID, fileID, digest)
+	if sigErr != nil {
+		_ = h.storage.Delete(ctx, fileID)
+		if errors.Is(sigErr, errSignatureInvalid) {
+			ErrorWithCode(w, http.StatusBadRequest, "signature_invalid", sigErr.Error())
+			return
+		}
+		h.log.Error("verify file signature", slog.String("error", sigErr.Error()))
+		Error(w, http.StatusInternalServerError, "failed to verify file signature")
+		return
+	}
+
+	// Update file record with storage path, mark upload completed, and
+	// persist signature verification result (FALSE when no signature was
+	// supplied, TRUE when verification passed — we fail the request
+	// above on verification mismatch).
 	now := time.Now().UTC()
 	_, _ = h.pool.Exec(ctx,
-		`UPDATE files SET storage_path = $1 WHERE id = $2`, storagePath, fileID)
+		`UPDATE files SET storage_path = $1, signature_verified = $2 WHERE id = $3`,
+		storagePath, signatureVerified, fileID)
 	_, _ = h.pool.Exec(ctx,
 		`UPDATE file_uploads SET completed_at = $1 WHERE id = $2`, now, uploadID)
 
@@ -558,6 +600,17 @@ func (h *FilesHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Defense in depth: a file that carries a signature *must* have
+	// been verified at upload time. CompleteUpload rejects the
+	// request if verification fails, so reaching this branch means a
+	// signed-but-unverified row exists — refuse to serve it rather
+	// than trust the agent to catch the failure later.
+	if f.Signature != "" && !f.SignatureVerified {
+		ErrorWithCode(w, http.StatusConflict, "signature_unverified",
+			"file has a stored signature that was not verified server-side")
+		return
+	}
+
 	downloadURL, err := h.storage.URL(r.Context(), fileID)
 	if err != nil {
 		h.log.Error("generate download URL", slog.String("error", err.Error()))
@@ -621,4 +674,66 @@ func nullIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// errSignatureInvalid is returned by verifyFileSignature when the
+// registered signing key rejects the stored signature. Internal errors
+// (DB lookup failures, malformed PEM, missing key) are returned as
+// distinct wrapped errors so the handler can tell a caller-visible
+// rejection apart from an operator-visible failure.
+var errSignatureInvalid = errors.New("signature does not verify against registered key")
+
+// verifyFileSignature loads the signature fields for fileID, and if a
+// signature is present, verifies it against the tenant's signing key.
+//
+// Returns (true, nil)  if a signature was present and verified.
+// Returns (false, nil) if no signature was supplied at initiate time.
+// Returns (_, err)     if verification failed or the lookup errored.
+//
+// The digest argument is the SHA-256 of the assembled file — callers
+// that have already computed it (CompleteUpload does) pass it directly
+// to avoid re-hashing.
+func (h *FilesHandler) verifyFileSignature(ctx context.Context, tenantID, fileID string, digest []byte) (bool, error) {
+	var sigB64, keyID *string
+	err := h.pool.QueryRow(ctx,
+		`SELECT signature, signature_key_id FROM files WHERE id = $1 AND tenant_id = $2`,
+		fileID, tenantID,
+	).Scan(&sigB64, &keyID)
+	if err != nil {
+		return false, fmt.Errorf("load file signature fields: %w", err)
+	}
+
+	// No signature supplied — not a verification failure.
+	if sigB64 == nil || keyID == nil || *sigB64 == "" || *keyID == "" {
+		return false, nil
+	}
+
+	// Look up the signing key. Scoped to the file's tenant so a stale
+	// or foreign key ID cannot bypass the check.
+	var pubPEM string
+	err = h.pool.QueryRow(ctx,
+		`SELECT public_key FROM signing_keys WHERE id = $1 AND tenant_id = $2`,
+		*keyID, tenantID,
+	).Scan(&pubPEM)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, fmt.Errorf("%w: signing key not found", errSignatureInvalid)
+		}
+		return false, fmt.Errorf("load signing key: %w", err)
+	}
+
+	_, pub, err := parseEd25519PublicKeyPEM(pubPEM)
+	if err != nil {
+		return false, fmt.Errorf("parse signing key: %w", err)
+	}
+
+	sig, err := base64.StdEncoding.DecodeString(*sigB64)
+	if err != nil {
+		return false, fmt.Errorf("%w: signature is not valid base64", errSignatureInvalid)
+	}
+
+	if !ed25519.Verify(pub, digest, sig) {
+		return false, errSignatureInvalid
+	}
+	return true, nil
 }
