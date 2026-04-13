@@ -24,6 +24,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/logging"
 	"github.com/eavalenzuela/Moebius/server/migrate"
 	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/server/quota"
 	"github.com/eavalenzuela/Moebius/server/ratelimit"
 	"github.com/eavalenzuela/Moebius/server/rbac"
 	"github.com/eavalenzuela/Moebius/server/storage"
@@ -133,6 +134,19 @@ func runServer() error {
 			slog.Int("per_agent_checkin_rpm", cfg.RateLimitAgentCheckinRPM))
 	}
 
+	// Per-tenant resource quotas
+	quotaResolver := quota.NewResolver(st.Pool(), quota.Defaults{
+		MaxDevices:       cfg.QuotaMaxDevices,
+		MaxQueuedJobs:    cfg.QuotaMaxQueuedJobs,
+		MaxAPIKeys:       cfg.QuotaMaxAPIKeys,
+		MaxFileSizeBytes: cfg.QuotaMaxFileSizeBytes,
+	})
+	log.Info("per-tenant quotas configured",
+		slog.Int64("max_devices", cfg.QuotaMaxDevices),
+		slog.Int64("max_queued_jobs", cfg.QuotaMaxQueuedJobs),
+		slog.Int64("max_api_keys", cfg.QuotaMaxAPIKeys),
+		slog.Int64("max_file_size_bytes", cfg.QuotaMaxFileSizeBytes))
+
 	// Build router
 	router := api.NewRouter(api.RouterConfig{
 		Pool:                   st.Pool(),
@@ -148,6 +162,7 @@ func runServer() error {
 		PerIPLimiter:           perIPLimiter,
 		PerTenantLimiter:       perTenantLimiter,
 		PerAgentCheckinLimiter: perAgentCheckinLimiter,
+		Quota:                  quotaResolver,
 	})
 
 	// Start HTTP(S) server

@@ -13,6 +13,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/auth"
 	"github.com/eavalenzuela/Moebius/server/health"
 	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/server/quota"
 	"github.com/eavalenzuela/Moebius/server/ratelimit"
 	"github.com/eavalenzuela/Moebius/server/rbac"
 	"github.com/eavalenzuela/Moebius/server/storage"
@@ -34,6 +35,7 @@ type RouterConfig struct {
 	PerIPLimiter           *ratelimit.KeyedLimiter
 	PerTenantLimiter       *ratelimit.KeyedLimiter
 	PerAgentCheckinLimiter *ratelimit.KeyedLimiter
+	Quota                  *quota.Resolver // nil = quotas disabled
 }
 
 // NewRouter creates the fully wired chi router for the API server.
@@ -79,7 +81,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	r.Handle("/metrics", promhttp.Handler())
 
 	// Agent enrollment (unauthenticated, token-gated)
-	enrollHandler := NewEnrollHandler(cfg.Pool, cfg.Enrollment, cfg.CA, cfg.Audit, cfg.Log)
+	enrollHandler := NewEnrollHandler(cfg.Pool, cfg.Enrollment, cfg.CA, cfg.Audit, cfg.Quota, cfg.Log)
 	r.Post("/v1/agents/enroll", enrollHandler.ServeHTTP)
 
 	// Install script (unauthenticated, enrollment-token-gated via query param)
@@ -121,7 +123,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		logsHandler := NewLogsHandler(cfg.Pool, cfg.Log)
 		r.With(MaxBytes(MaxBodyBytesAgentLogs)).Post("/logs", logsHandler.Ingest)
 
-		filesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
+		filesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Quota, cfg.Log)
 		r.Get("/files/{file_id}/download", filesH.Download)
 
 		// Agent-facing signing key fetch (for update signature verification)
@@ -131,7 +133,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	// File data serving (local backend) — no auth (URL from download endpoint)
 	{
-		localFilesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
+		localFilesH := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Quota, cfg.Log)
 		r.Get("/v1/files/data/{file_id}", localFilesH.ServeFileData)
 	}
 
@@ -178,7 +180,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermUsersWrite)).Put("/users/{user_id}/sso-subject", users.SetSSOSubject)
 
 		// API Keys
-		apiKeys := NewAPIKeysHandler(cfg.Store, cfg.Audit)
+		apiKeys := NewAPIKeysHandler(cfg.Store, cfg.Audit, cfg.Quota)
 		r.With(rbac.Require(rbac.PermAPIKeysRead)).Get("/api-keys", apiKeys.List)
 		r.With(rbac.Require(rbac.PermAPIKeysWrite)).Post("/api-keys", apiKeys.Create)
 		r.With(rbac.Require(rbac.PermAPIKeysWrite)).Delete("/api-keys/{key_id}", apiKeys.Delete)
@@ -189,7 +191,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		r.With(rbac.Require(rbac.PermTenantWrite)).Patch("/tenant", tenant.Update)
 
 		// Jobs
-		jobsH := NewJobsHandler(cfg.Pool, cfg.Audit, cfg.Log)
+		jobsH := NewJobsHandler(cfg.Pool, cfg.Audit, cfg.Quota, cfg.Log)
 		r.With(rbac.Require(rbac.PermJobsRead)).Get("/jobs", jobsH.List)
 		r.With(rbac.Require(rbac.PermJobsCreate)).Post("/jobs", jobsH.Create)
 		r.With(rbac.Require(rbac.PermJobsRead)).Get("/jobs/{job_id}", jobsH.Get)
@@ -247,7 +249,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		// plus HTTP overhead, so it gets a wider per-route MaxBytes cap
 		// than the global default. Other file endpoints take small JSON
 		// metadata bodies and inherit the global 8 MB cap.
-		filesAPI := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Log)
+		filesAPI := NewFilesHandler(cfg.Pool, cfg.Storage, cfg.Audit, cfg.Quota, cfg.Log)
 		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files", filesAPI.ListFiles)
 		r.With(rbac.Require(rbac.PermFilesWrite)).Post("/files", filesAPI.InitiateUpload)
 		r.With(rbac.Require(rbac.PermFilesRead)).Get("/files/{file_id}", filesAPI.GetFile)

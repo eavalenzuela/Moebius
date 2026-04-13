@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/eavalenzuela/Moebius/server/quota"
 )
 
 // JSON writes a JSON response with the given status code.
@@ -41,6 +43,17 @@ func ErrorWithCode(w http.ResponseWriter, status int, code, msg string) {
 			RequestID: reqID,
 		},
 	})
+}
+
+// HandleQuotaError renders a 409 quota_exceeded response when err is a
+// quota.ErrExceeded and returns true. Returns false for non-quota
+// errors so the caller can fall through to its 500 path.
+func HandleQuotaError(w http.ResponseWriter, err error) bool {
+	if qe, ok := quota.AsExceeded(err); ok {
+		ErrorWithCode(w, http.StatusConflict, "quota_exceeded", qe.Error())
+		return true
+	}
+	return false
 }
 
 func httpCodeToErrorCode(status int) string {

@@ -45,6 +45,12 @@ type Config struct {
 	RateLimitAgentCheckinRPM   int // check-ins per minute per agent
 	RateLimitAgentCheckinBurst int
 
+	// Per-tenant resource quotas (API server only). -1 = unlimited.
+	QuotaMaxDevices       int64
+	QuotaMaxQueuedJobs    int64
+	QuotaMaxAPIKeys       int64
+	QuotaMaxFileSizeBytes int64
+
 	// Scheduler only
 	SchedulerTickSeconds       int    // tick interval for cron evaluation
 	ReaperDispatchedTimeoutSec int    // dispatched jobs older than this are requeued
@@ -104,6 +110,10 @@ func Load(proc Process) (*Config, error) {
 		RateLimitPerTenantBurst:    envIntOrDefault("RATE_LIMIT_PER_TENANT_BURST", 50),
 		RateLimitAgentCheckinRPM:   envIntOrDefault("RATE_LIMIT_AGENT_CHECKIN_RPM", 6),
 		RateLimitAgentCheckinBurst: envIntOrDefault("RATE_LIMIT_AGENT_CHECKIN_BURST", 3),
+		QuotaMaxDevices:            envInt64OrDefault("QUOTA_MAX_DEVICES_PER_TENANT", 10000),
+		QuotaMaxQueuedJobs:         envInt64OrDefault("QUOTA_MAX_QUEUED_JOBS_PER_TENANT", 10000),
+		QuotaMaxAPIKeys:            envInt64OrDefault("QUOTA_MAX_API_KEYS_PER_TENANT", 100),
+		QuotaMaxFileSizeBytes:      envInt64OrDefault("QUOTA_MAX_FILE_SIZE_BYTES", 1024*1024*1024),
 	}
 
 	if err := c.validate(proc); err != nil {
@@ -205,6 +215,18 @@ func envIntOrDefault(key string, fallback int) int {
 		return fallback
 	}
 	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func envInt64OrDefault(key string, fallback int64) int64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
 		return fallback
 	}

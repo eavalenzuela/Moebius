@@ -11,6 +11,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/audit"
 	"github.com/eavalenzuela/Moebius/server/auth"
 	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/server/quota"
 	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/eavalenzuela/Moebius/shared/protocol"
 	"github.com/jackc/pgx/v5"
@@ -25,16 +26,18 @@ type EnrollHandler struct {
 	enrollment *auth.EnrollmentService
 	ca         *pki.CA
 	audit      *audit.Logger
+	quota      *quota.Resolver
 	log        *slog.Logger
 }
 
 // NewEnrollHandler creates an EnrollHandler.
-func NewEnrollHandler(pool *pgxpool.Pool, enrollment *auth.EnrollmentService, ca *pki.CA, auditLog *audit.Logger, log *slog.Logger) *EnrollHandler {
+func NewEnrollHandler(pool *pgxpool.Pool, enrollment *auth.EnrollmentService, ca *pki.CA, auditLog *audit.Logger, quotaRes *quota.Resolver, log *slog.Logger) *EnrollHandler {
 	return &EnrollHandler{
 		pool:       pool,
 		enrollment: enrollment,
 		ca:         ca,
 		audit:      auditLog,
+		quota:      quotaRes,
 		log:        log,
 	}
 }
@@ -64,6 +67,19 @@ func (h *EnrollHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.Warn("enrollment token validation failed", slog.String("error", err.Error()))
 		Error(w, http.StatusUnauthorized, "invalid or expired enrollment token")
+		return
+	}
+
+	// Device count quota — rejected after token consume so a rate-of-
+	// enrollment attack cannot skip the consume and replay the same
+	// token. The quota is best-effort: concurrent enrolls against an
+	// almost-full tenant can both pass, but at most by a few devices.
+	if err := h.quota.CheckDevices(ctx, token.TenantID); err != nil {
+		if HandleQuotaError(w, err) {
+			return
+		}
+		h.log.Error("device quota check", slog.String("error", err.Error()))
+		Error(w, http.StatusInternalServerError, "failed to check quota")
 		return
 	}
 

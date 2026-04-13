@@ -11,6 +11,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/audit"
 	"github.com/eavalenzuela/Moebius/server/auth"
 	"github.com/eavalenzuela/Moebius/server/jobs"
+	"github.com/eavalenzuela/Moebius/server/quota"
 	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -21,14 +22,16 @@ import (
 type JobsHandler struct {
 	pool  *pgxpool.Pool
 	audit *audit.Logger
+	quota *quota.Resolver
 	log   *slog.Logger
 }
 
 // NewJobsHandler creates a JobsHandler.
-func NewJobsHandler(pool *pgxpool.Pool, auditLog *audit.Logger, log *slog.Logger) *JobsHandler {
+func NewJobsHandler(pool *pgxpool.Pool, auditLog *audit.Logger, quotaRes *quota.Resolver, log *slog.Logger) *JobsHandler {
 	return &JobsHandler{
 		pool:  pool,
 		audit: auditLog,
+		quota: quotaRes,
 		log:   log,
 	}
 }
@@ -98,6 +101,18 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	// Queued-job quota: refuse the whole request if the resolved fan-out
+	// would push the tenant over its queued-job cap. Rejected atomically
+	// so a partial batch never lands.
+	if err := h.quota.CheckQueuedJobs(ctx, tenantID, int64(len(deviceIDs))); err != nil {
+		if HandleQuotaError(w, err) {
+			return
+		}
+		h.log.Error("queued-job quota check", slog.String("error", err.Error()))
+		Error(w, http.StatusInternalServerError, "failed to check quota")
+		return
 	}
 
 	// Apply default retry policy if not specified
@@ -498,6 +513,15 @@ func (h *JobsHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	if !jobs.IsRetryable(j.Status) {
 		ErrorWithCode(w, http.StatusConflict, "not_retryable",
 			"job in state "+j.Status+" cannot be retried")
+		return
+	}
+
+	if err := h.quota.CheckQueuedJobs(ctx, tenantID, 1); err != nil {
+		if HandleQuotaError(w, err) {
+			return
+		}
+		h.log.Error("queued-job quota check", slog.String("error", err.Error()))
+		Error(w, http.StatusInternalServerError, "failed to check quota")
 		return
 	}
 

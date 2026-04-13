@@ -10,6 +10,7 @@ import (
 
 	"github.com/eavalenzuela/Moebius/server/audit"
 	"github.com/eavalenzuela/Moebius/server/auth"
+	"github.com/eavalenzuela/Moebius/server/quota"
 	"github.com/eavalenzuela/Moebius/server/store"
 	"github.com/eavalenzuela/Moebius/shared/models"
 	"github.com/go-chi/chi/v5"
@@ -19,11 +20,12 @@ import (
 type APIKeysHandler struct {
 	store *store.Store
 	audit *audit.Logger
+	quota *quota.Resolver
 }
 
 // NewAPIKeysHandler creates an APIKeysHandler.
-func NewAPIKeysHandler(s *store.Store, auditLog *audit.Logger) *APIKeysHandler {
-	return &APIKeysHandler{store: s, audit: auditLog}
+func NewAPIKeysHandler(s *store.Store, auditLog *audit.Logger, quotaRes *quota.Resolver) *APIKeysHandler {
+	return &APIKeysHandler{store: s, audit: auditLog, quota: quotaRes}
 }
 
 // List handles GET /v1/api-keys.
@@ -72,6 +74,34 @@ func (h *APIKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Only admins can create admin keys
 	if req.IsAdmin && !auth.IsAdminFromContext(r.Context()) {
 		Error(w, http.StatusForbidden, "only admin keys can create admin keys")
+		return
+	}
+
+	if err := h.quota.CheckAPIKeys(r.Context(), tenantID); err != nil {
+		if HandleQuotaError(w, err) {
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to check quota")
+		return
+	}
+
+	// role_id is required — every api_key row carries a role (even admin
+	// keys) because the auth middleware scans `role_id` into a plain
+	// string, which would error on NULL. Validate the ID resolves in the
+	// caller's tenant so a typo returns 400 instead of an opaque 500 FK
+	// error from the INSERT.
+	if req.RoleID == "" {
+		Error(w, http.StatusBadRequest, "role_id is required")
+		return
+	}
+	role, err := h.store.GetRole(r.Context(), tenantID, req.RoleID)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "failed to load role")
+		return
+	}
+	if role == nil {
+		ErrorWithCode(w, http.StatusBadRequest, "role_not_found",
+			"role_id does not resolve to a role in this tenant")
 		return
 	}
 

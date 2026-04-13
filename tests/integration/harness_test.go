@@ -31,6 +31,7 @@ import (
 	"github.com/eavalenzuela/Moebius/server/health"
 	"github.com/eavalenzuela/Moebius/server/migrate"
 	"github.com/eavalenzuela/Moebius/server/pki"
+	"github.com/eavalenzuela/Moebius/server/quota"
 	"github.com/eavalenzuela/Moebius/server/rbac"
 	"github.com/eavalenzuela/Moebius/server/storage"
 	"github.com/eavalenzuela/Moebius/server/store"
@@ -48,12 +49,25 @@ type testHarness struct {
 	apiURL     string
 	log        *slog.Logger
 	httpClient *http.Client // client for API requests (TLS-aware after startMTLSServer)
+	quota      *quota.Resolver
 
 	// Bootstrap data
 	tenantID string
 	adminKey string // raw API key (sk_...)
 	userID   string
 	roleID   string
+}
+
+// generousTestQuotas returns global quota ceilings large enough that
+// no existing test trips them. Quota-specific tests drop their tenant
+// into a tighter window by writing to TenantConfig.Quotas directly.
+func generousTestQuotas() quota.Defaults {
+	return quota.Defaults{
+		MaxDevices:       1_000_000,
+		MaxQueuedJobs:    1_000_000,
+		MaxAPIKeys:       10_000,
+		MaxFileSizeBytes: 10 * 1024 * 1024 * 1024, // 10 GB
+	}
 }
 
 // newHarness creates a fully-wired test environment:
@@ -156,6 +170,7 @@ func newHarness(t *testing.T) *testHarness {
 	// Build router and start test server
 	healthH := health.New(map[string]health.Checker{"database": st})
 	auditLog := audit.New(pool, log)
+	quotaRes := quota.NewResolver(pool, generousTestQuotas())
 
 	router := api.NewRouter(api.RouterConfig{
 		Pool:       pool,
@@ -166,6 +181,7 @@ func newHarness(t *testing.T) *testHarness {
 		Health:     healthH,
 		Enrollment: enrollment,
 		Storage:    storageBe,
+		Quota:      quotaRes,
 	})
 
 	srv := httptest.NewServer(router)
@@ -180,6 +196,7 @@ func newHarness(t *testing.T) *testHarness {
 		apiURL:     srv.URL,
 		log:        log,
 		httpClient: http.DefaultClient,
+		quota:      quotaRes,
 		tenantID:   tenantID,
 		adminKey:   rawKey,
 		userID:     userID,
@@ -392,6 +409,7 @@ func (h *testHarness) rebuildRouter() http.Handler {
 		Health:     healthH,
 		Enrollment: enrollment,
 		Storage:    storageBe,
+		Quota:      h.quota,
 	})
 }
 
